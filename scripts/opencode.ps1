@@ -30,8 +30,8 @@ if (Test-Path $SRC_DIR) {
 $SCRIPT_SELF = $PSCommandPath
 if ($SCRIPT_SELF -and (Test-Path $SCRIPT_SELF)) {
     $SCRIPT_BACKUP_DIR = "$OUT_DIR\script_backup"
-    $SCRIPT_BACKUP = "$SCRIPT_BACKUP_DIR\opencode-v4.ps1"
-    $SCRIPT_BACKUP_OLD = "$SCRIPT_BACKUP_DIR\opencode-v4.ps1.old"
+    $SCRIPT_BACKUP = "$SCRIPT_BACKUP_DIR\opencode-v3.ps1"
+    $SCRIPT_BACKUP_OLD = "$SCRIPT_BACKUP_DIR\opencode-v3.ps1.old"
 
     # 创建备份目录
     if (!(Test-Path $SCRIPT_BACKUP_DIR)) {
@@ -801,7 +801,18 @@ function Show-VersionInfo {
             }
 
             Write-StepMessage "从远程仓库拉取最新代码..." "INFO"
-            $pullResult = Invoke-GitCommandWithProgress -Command "pull" -Message "   → 拉取代码"
+            # 获取当前分支名，使用精确拉取避免合并冲突
+            $currentBranch = $null
+            $branchOutput = git rev-parse --abbrev-ref HEAD 2>&1
+            if ($LASTEXITCODE -eq 0 -and $branchOutput) {
+                $currentBranch = $branchOutput
+            }
+
+            if ($currentBranch) {
+                $pullResult = Invoke-GitCommandWithProgress -Command "pull origin $currentBranch --no-edit" -Message "   → 拉取代码"
+            } else {
+                $pullResult = Invoke-GitCommandWithProgress -Command "pull --no-edit" -Message "   → 拉取代码"
+            }
             $success = $pullResult.Success
 
             if (!$success -and $detectedProxy) {
@@ -809,7 +820,11 @@ function Show-VersionInfo {
                 Write-StepMessage "代理连接失败，尝试直连..." "WARNING"
                 git config --unset http.proxy
                 git config --unset https.proxy
-                $pullResult = Invoke-GitCommandWithProgress -Command "pull" -Message "   → 直连拉取"
+                if ($currentBranch) {
+                    $pullResult = Invoke-GitCommandWithProgress -Command "pull origin $currentBranch --no-edit" -Message "   → 直连拉取"
+                } else {
+                    $pullResult = Invoke-GitCommandWithProgress -Command "pull --no-edit" -Message "   → 直连拉取"
+                }
                 $success = $pullResult.Success
             }
 
@@ -2713,7 +2728,18 @@ function Invoke-OneClickFull {
             }
 
             Write-StepMessage "从远程仓库拉取最新代码..." "INFO"
-            $pullResult = Invoke-GitCommandWithProgress -Command "pull" -Message "   → 拉取代码"
+            # 获取当前分支名，使用精确拉取避免合并冲突
+            $currentBranch = $null
+            $branchOutput = git rev-parse --abbrev-ref HEAD 2>&1
+            if ($LASTEXITCODE -eq 0 -and $branchOutput) {
+                $currentBranch = $branchOutput
+            }
+
+            if ($currentBranch) {
+                $pullResult = Invoke-GitCommandWithProgress -Command "pull origin $currentBranch --no-edit" -Message "   → 拉取代码"
+            } else {
+                $pullResult = Invoke-GitCommandWithProgress -Command "pull --no-edit" -Message "   → 拉取代码"
+            }
             $success = $pullResult.Success
 
             if (!$success -and $detectedProxy) {
@@ -2721,7 +2747,11 @@ function Invoke-OneClickFull {
                 Write-StepMessage "代理连接失败，尝试直连..." "WARNING"
                 git config --unset http.proxy
                 git config --unset https.proxy
-                $pullResult = Invoke-GitCommandWithProgress -Command "pull" -Message "   → 直连拉取"
+                if ($currentBranch) {
+                    $pullResult = Invoke-GitCommandWithProgress -Command "pull origin $currentBranch --no-edit" -Message "   → 直连拉取"
+                } else {
+                    $pullResult = Invoke-GitCommandWithProgress -Command "pull --no-edit" -Message "   → 直连拉取"
+                }
                 $success = $pullResult.Success
             }
 
@@ -3298,8 +3328,8 @@ function Restore-Script {
     Write-ColorOutput Cyan "可用备份:"
     Write-Output ""
 
-    $mainBackup = "$scriptBackupDir\opencode-v4.ps1"
-    $oldBackup = "$scriptBackupDir\opencode-v4.ps1.old"
+    $mainBackup = "$scriptBackupDir\opencode-v3.ps1"
+    $oldBackup = "$scriptBackupDir\opencode-v3.ps1.old"
 
     $hasMain = Test-Path $mainBackup
     $hasOld = Test-Path $oldBackup
@@ -3601,7 +3631,7 @@ function Show-ProjectInfo {
 ## 目录结构
 ```
 $SCRIPT_DIR\
-├── opencode-v4.ps1          # 主管理脚本
+├── opencode-v3.ps1          # 主管理脚本
 ├── opencode-i18n.json       # 汉化配置文件
 ├── opencode.exe             # 编译输出
 └── opencode-zh-CN\          # OpenCode 源码
