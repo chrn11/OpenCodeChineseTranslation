@@ -59,6 +59,7 @@
     "submit": "提交",
     "dismiss": "关闭",
     "{revert()!.reverted.length} message reverted": "{revert()!.reverted.length} 条消息已撤销",
-    "|| \"(no answer)\"": "|| \"(无答案)\""
+    "|| \"(no answer)\"": "|| \"(无答案)\"",
+    "Fetching from the web...": "正在从网络获取..."
   }
 }
