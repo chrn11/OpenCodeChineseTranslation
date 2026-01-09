@@ -13,6 +13,8 @@
     "<text>Invalid code</text>": "<text>无效的授权码</text>",
     "c <span style={{ fg: theme.textMuted }}>copy</span>": "c <span style={{ fg: theme.textMuted }}>复制</span>",
     "OpenCode Zen gives you access to all the best coding models at the cheapest prices with a single API key.": "OpenCode Zen 以最低的价格为您提供所有最佳编码模型的访问权限，只需一个 API 密钥。",
-    "Go to ": "前往 "
+    "Go to ": "前往 ",
+    "to get a key": "获取密钥",
+    "Copied to clipboard": "已复制到剪贴板"
   }
 }
