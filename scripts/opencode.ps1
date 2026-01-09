@@ -1,5 +1,5 @@
 # ========================================
-# OpenCode 中文汉化版 - 管理工具 v3.1
+# OpenCode 中文汉化版 - 管理工具 v3.2
 # ========================================
 
 # 配置路径 (使用脚本所在目录，自动适配)
@@ -57,10 +57,164 @@ function Write-ColorOutput($ForegroundColor) {
     $host.UI.RawUI.ForegroundColor = $fc
 }
 
+# ==================== 动态进度指示 ====================
+# 进度指示器状态
+$script:ProgressActive = $false
+$script:ProgressMessage = ""
+
+function Show-Spinner {
+    <#
+    .SYNOPSIS
+        显示旋转进度指示器
+    .PARAMETER Message
+        显示的消息
+    #>
+    param(
+        [string]$Message = "处理中",
+        [scriptblock]$ScriptBlock
+    )
+
+    $spinner = @('|', '/', '-', '\')
+    $idx = 0
+    $originalX = $host.UI.RawUI.CursorPosition.X
+    $originalY = $host.UI.RawUI.CursorPosition.Y
+
+    if ($ScriptBlock) {
+        # 后台执行脚本块
+        $job = Start-Job -ScriptBlock $ScriptBlock
+        $script:ProgressActive = $true
+
+        while ($job.State -eq "Running") {
+            $spinChar = $spinner[$idx % 4]
+            Write-Host "`r$Message $spinChar" -NoNewline
+            $idx++
+            Start-Sleep -Milliseconds 100
+            $job.Refresh()
+        }
+
+        Write-Host "`r$Message 完成 "
+        $result = Receive-Job $job
+        Remove-Job $job
+        $script:ProgressActive = $false
+        return $result
+    } else {
+        # 仅显示单帧动画（用于异步场景）
+        $spinChar = $spinner[$idx % 4]
+        Write-Host "`r$Message $spinChar" -NoNewline
+    }
+}
+
+function Invoke-GitCommandWithProgress {
+    <#
+    .SYNOPSIS
+        执行 Git 命令并显示实时输出
+    .PARAMETER Command
+        Git 命令（不含 "git" 前缀）
+    .PARAMETER Message
+        进度消息
+    #>
+    param(
+        [string]$Command,
+        [string]$Message = "执行中",
+        [string]$WorkingDirectory = $SRC_DIR
+    )
+
+    Write-Host "$Message... " -NoNewline
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "git.exe"
+    $psi.Arguments = $Command
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    $psi.WorkingDirectory = $WorkingDirectory
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $psi
+    $process.Start() | Out-Null
+
+    # 读取输出
+    $output = $process.StandardOutput.ReadToEnd()
+    $error = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+
+    $exitCode = $process.ExitCode
+
+    if ($exitCode -eq 0) {
+        Write-Host "✓" -ForegroundColor Green
+        # 如果有输出，显示关键信息
+        if ($output -match "Already up to date") {
+            Write-Host "  已是最新" -ForegroundColor DarkGray
+        } elseif ($output -match "Updating\s+\S+") {
+            Write-Host "  $($matches[0])" -ForegroundColor Cyan
+        } elseif ($output -match "\d+\s+file\s+changed") {
+            Write-Host "  $($matches[0])" -ForegroundColor Cyan
+        }
+    } else {
+        Write-Host "✗" -ForegroundColor Red
+    }
+
+    return @{
+        Success = ($exitCode -eq 0)
+        Output = $output
+        Error = $error
+        ExitCode = $exitCode
+    }
+}
+
+function Write-StepProgress {
+    <#
+    .SYNOPSIS
+        显示步骤进度条
+    #>
+    param(
+        [int]$Current,
+        [int]$Total,
+        [string]$Message
+    )
+
+    $percent = [math]::Floor(($Current / $Total) * 100)
+    $barLength = 20
+    $filled = [math]::Floor(($Current / $Total) * $barLength)
+    $empty = $barLength - $filled
+
+    $bar = "█" * $filled + "░" * $empty
+    Write-Host "`r[$bar] $percent% - $Message" -NoNewline
+}
+
+function Write-StepComplete {
+    Write-Host ""
+}
+
+function Write-StepMessage {
+    param(
+        [string]$Message,
+        [string]$Status = "INFO"  # INFO, SUCCESS, WARNING, ERROR
+    )
+
+    $colors = @{
+        "INFO" = "Cyan"
+        "SUCCESS" = "Green"
+        "WARNING" = "Yellow"
+        "ERROR" = "Red"
+    }
+    $color = $colors[$Status]
+    $symbols = @{
+        "INFO" = "→"
+        "SUCCESS" = "✓"
+        "WARNING" = "!"
+        "ERROR" = "✗"
+    }
+    $symbol = $symbols[$Status]
+
+    Write-Host "`n$symbol $Message" -ForegroundColor $color
+}
+
 function Write-Header {
     Clear-Host
     Write-ColorOutput Cyan "╔════════════════════════════════════╗"
-    Write-ColorOutput Cyan "║  OpenCode 中文汉化管理工具 v3.1    ║"
+    Write-ColorOutput Cyan "║  OpenCode 中文汉化管理工具 v3.2    ║"
     Write-ColorOutput Cyan "╚════════════════════════════════════╝"
     Write-Output ""
 }
@@ -385,14 +539,12 @@ function Show-VersionInfo {
         Write-Output ""
 
         # 询问是否立即更新
-        $updateChoice = Read-Host "   是否立即更新？"
-        if ($updateChoice -eq "y" -or $updateChoice -eq "Y" -or $updateChoice -eq "是") {
+        $updateChoice = Read-Host "   是否立即更新？(Y/n)"
+        if ($updateChoice -eq "" -or $updateChoice -eq "y" -or $updateChoice -eq "Y" -or $updateChoice -eq "是") {
             Write-Output ""
-            Write-ColorOutput Yellow "   正在更新..."
 
-            Push-Location $SRC_DIR
-
-            # 检测并配置系统代理
+            # 步骤1: 检测代理
+            Write-StepMessage "检测网络代理..." "INFO"
             $detectedProxy = $null
             $commonProxyPorts = @(7890, 7891, 10809, 10808, 1087, 1080, 8080)
 
@@ -404,7 +556,7 @@ function Show-VersionInfo {
                     $tcp.Connect("127.0.0.1", $port)
                     $tcp.Close()
                     $detectedProxy = "http://127.0.0.1:$port"
-                    Write-ColorOutput DarkGray "   使用代理: 127.0.0.1:$port"
+                    Write-Host "   → 检测到代理: 127.0.0.1:$port" -ForegroundColor DarkGray
                     break
                 } catch {
                     # 端口未开放，继续检查下一个
@@ -416,49 +568,61 @@ function Show-VersionInfo {
                 $envProxy = $env:HTTP_PROXY -or $env:http_proxy -or $env:ALL_PROXY -or $env:all_proxy
                 if ($envProxy) {
                     $detectedProxy = $envProxy
-                    Write-ColorOutput DarkGray "   使用代理: $envProxy"
+                    Write-Host "   → 检测到环境变量代理: $envProxy" -ForegroundColor DarkGray
                 }
             }
 
-            # 如果检测到代理，配置给 git 使用
+            if (!$detectedProxy) {
+                Write-Host "   → 使用直连" -ForegroundColor DarkGray
+            }
+
+            # 步骤2: 解除文件忽略标记
+            Write-StepMessage "解除文件忽略标记..." "INFO"
+            Push-Location $SRC_DIR
+
+            $beforePull = git ls-files -v | Where-Object { $_ -match "^h" }
+            if ($beforePull) {
+                $markedFiles = @($beforePull)
+                Write-Host "   → 解除 $($markedFiles.Count) 个文件的忽略标记" -ForegroundColor DarkGray
+                foreach ($file in $markedFiles) {
+                    $filePath = $file.Substring(2)
+                    git update-index --no-assume-unchanged $filePath 2>&1 | Out-Null
+                }
+            } else {
+                Write-Host "   → 无需解除" -ForegroundColor DarkGray
+            }
+
+            # 步骤3: 配置代理并拉取
             if ($detectedProxy) {
                 git config http.proxy $detectedProxy
                 git config https.proxy $detectedProxy
             }
 
-            # 清除 assume-unchanged 标记
-            $beforePull = git ls-files -v | Where-Object { $_ -match "^h" }
-            if ($beforePull) {
-                $markedFiles = @($beforePull)
-                Write-ColorOutput DarkGray "   临时解除 $($markedFiles.Count) 个文件的忽略标记..."
-                foreach ($file in $markedFiles) {
-                    $filePath = $file.Substring(2)
-                    git update-index --no-assume-unchanged $filePath 2>&1 | Out-Null
-                }
-            }
-
-            # 执行拉取
-            $result = git pull 2>&1
-            $success = $LASTEXITCODE -eq 0
+            Write-StepMessage "从远程仓库拉取最新代码..." "INFO"
+            $pullResult = Invoke-GitCommandWithProgress -Command "pull" -Message "   → 拉取代码"
+            $success = $pullResult.Success
 
             if (!$success -and $detectedProxy) {
                 # 如果检测到代理但拉取失败，尝试直连
-                Write-ColorOutput Yellow "   代理连接失败，尝试直连..."
+                Write-StepMessage "代理连接失败，尝试直连..." "WARNING"
                 git config --unset http.proxy
                 git config --unset https.proxy
-                $result = git pull 2>&1
-                $success = $LASTEXITCODE -eq 0
+                $pullResult = Invoke-GitCommandWithProgress -Command "pull" -Message "   → 直连拉取"
+                $success = $pullResult.Success
             }
 
             Pop-Location
 
+            # 步骤4: 显示结果
+            Write-Output ""
             if ($success) {
-                Write-ColorOutput Green "   ✓ 更新成功！"
+                Write-StepMessage "更新成功！" "SUCCESS"
                 Write-Output ""
                 Write-ColorOutput Yellow "   建议：运行 [2] 应用汉化 重新翻译"
             } else {
-                Write-ColorOutput Red "   ✗ 更新失败"
-                Write-Output "   $result"
+                Write-StepMessage "更新失败" "ERROR"
+                Write-Output "   $($pullResult.Output)"
+                Write-Output "   $($pullResult.Error)"
             }
         }
     } else {
@@ -1303,34 +1467,33 @@ function Update-Source {
     Write-Output ""
 
     if (!(Test-Path $SRC_DIR)) {
-        Write-ColorOutput Red "[错误] 源码目录不存在: $SRC_DIR"
+        Write-StepMessage "源码目录不存在: $SRC_DIR" "ERROR"
         Read-Host "按回车键继续"
         return
     }
 
     Push-Location $SRC_DIR
     if (!(Test-Path ".git")) {
-        Write-ColorOutput Red "[错误] 不是一个 git 仓库"
+        Write-StepMessage "不是一个 git 仓库" "ERROR"
         Pop-Location
         Read-Host "按回车键继续"
         return
     }
 
-    # 检测并配置系统代理
+    # 步骤1: 检测代理
+    Write-StepMessage "检测网络代理..." "INFO"
     $detectedProxy = $null
-    $commonProxyPorts = @(7890, 7891, 10809, 10808, 1087, 1080, 8080, 10809)
-
-    Write-ColorOutput Yellow "检测代理设置..."
+    $commonProxyPorts = @(7890, 7891, 10809, 10808, 1087, 1080, 8080)
 
     # 检查常见的代理端口
     foreach ($port in $commonProxyPorts) {
         try {
             $tcp = New-Object System.Net.Sockets.TcpClient
-            $tcp.ReceiveTimeout = 1000
+            $tcp.ReceiveTimeout = 500
             $tcp.Connect("127.0.0.1", $port)
             $tcp.Close()
             $detectedProxy = "http://127.0.0.1:$port"
-            Write-ColorOutput Green "   检测到本地代理: 127.0.0.1:$port"
+            Write-Host "   → 检测到代理: 127.0.0.1:$port" -ForegroundColor DarkGray
             break
         } catch {
             # 端口未开放，继续检查下一个
@@ -1342,54 +1505,59 @@ function Update-Source {
         $envProxy = $env:HTTP_PROXY -or $env:http_proxy -or $env:ALL_PROXY -or $env:all_proxy
         if ($envProxy) {
             $detectedProxy = $envProxy
-            Write-ColorOutput Green "   检测到环境变量代理: $envProxy"
+            Write-Host "   → 检测到环境变量代理: $envProxy" -ForegroundColor DarkGray
         }
     }
 
-    # 如果检测到代理，临时配置给 git 使用
+    if (!$detectedProxy) {
+        Write-Host "   → 使用直连" -ForegroundColor DarkGray
+    }
+
+    # 步骤2: 解除文件忽略标记
+    Write-StepMessage "解除文件忽略标记..." "INFO"
+    $beforePull = git ls-files -v | Where-Object { $_ -match "^h" }
+    if ($beforePull) {
+        $markedFiles = @($beforePull)
+        Write-Host "   → 解除 $($markedFiles.Count) 个文件的忽略标记" -ForegroundColor DarkGray
+        foreach ($file in $markedFiles) {
+            $filePath = $file.Substring(2)
+            git update-index --no-assume-unchanged $filePath 2>&1 | Out-Null
+        }
+    } else {
+        Write-Host "   → 无需解除" -ForegroundColor DarkGray
+    }
+
+    # 步骤3: 配置代理并拉取
     if ($detectedProxy) {
         git config http.proxy $detectedProxy
         git config https.proxy $detectedProxy
     }
 
-    # 清除 assume-unchanged 标记，以便 git pull 能正常更新文件
-    Write-ColorOutput Yellow "准备拉取..."
-    $beforePull = git ls-files -v | Where-Object { $_ -match "^h" }
-    if ($beforePull) {
-        $markedFiles = @($beforePull)
-        Write-ColorOutput DarkGray "临时解除 $($markedFiles.Count) 个文件的忽略标记..."
-        foreach ($file in $markedFiles) {
-            $filePath = $file.Substring(2)
-            git update-index --no-assume-unchanged $filePath 2>&1 | Out-Null
-        }
-    }
+    Write-StepMessage "从远程仓库拉取最新代码..." "INFO"
+    $pullResult = Invoke-GitCommandWithProgress -Command "pull" -Message "   → 拉取代码"
+    $success = $pullResult.Success
 
-    Write-ColorOutput Yellow "正在拉取最新代码..."
-
-    # 尝试 git pull
-    $result = git pull 2>&1
-    $success = $LASTEXITCODE -eq 0
-
-    if (!$success) {
-        # 如果检测到代理但拉取失败，尝试清除代理重试
-        if ($detectedProxy) {
-            Write-ColorOutput Yellow "代理连接失败，尝试直连..."
-            git config --unset http.proxy
-            git config --unset https.proxy
-            $result = git pull 2>&1
-            $success = $LASTEXITCODE -eq 0
-        }
+    if (!$success -and $detectedProxy) {
+        # 如果检测到代理但拉取失败，尝试直连
+        Write-StepMessage "代理连接失败，尝试直连..." "WARNING"
+        git config --unset http.proxy
+        git config --unset https.proxy
+        $pullResult = Invoke-GitCommandWithProgress -Command "pull" -Message "   → 直连拉取"
+        $success = $pullResult.Success
     }
 
     Pop-Location
 
+    # 步骤4: 显示结果
+    Write-Output ""
     if ($success) {
-        Write-ColorOutput Green "代码更新完成！"
+        Write-StepMessage "代码更新完成！" "SUCCESS"
         Write-Output ""
-        Write-ColorOutput Yellow "建议：运行 [2] 应用汉化 重新翻译"
+        Write-ColorOutput Yellow "   建议：运行 [2] 应用汉化 重新翻译"
     } else {
-        Write-ColorOutput Yellow "git pull 失败，请检查网络连接"
-        Write-Output "$result"
+        Write-StepMessage "更新失败" "ERROR"
+        Write-Output "   $($pullResult.Output)"
+        Write-Output "   $($pullResult.Error)"
     }
 
     Write-Output ""
@@ -2164,8 +2332,9 @@ function Invoke-OneClickFull {
         }
 
         $pullConfirm = Read-Host "检测到新版本，是否拉取？(Y/n)"
-        if ($pullConfirm -ne "n" -and $pullConfirm -ne "N") {
-            # 检测并配置系统代理
+        if ($pullConfirm -eq "" -or $pullConfirm -ne "n" -and $pullConfirm -ne "N") {
+            # 步骤1: 检测代理
+            Write-StepMessage "检测网络代理..." "INFO"
             $detectedProxy = $null
             $commonProxyPorts = @(7890, 7891, 10809, 10808, 1087, 1080, 8080)
 
@@ -2177,7 +2346,7 @@ function Invoke-OneClickFull {
                     $tcp.Connect("127.0.0.1", $port)
                     $tcp.Close()
                     $detectedProxy = "http://127.0.0.1:$port"
-                    Write-ColorOutput DarkGray "使用代理: 127.0.0.1:$port"
+                    Write-Host "   → 检测到代理: 127.0.0.1:$port" -ForegroundColor DarkGray
                     break
                 } catch {
                     # 端口未开放，继续检查下一个
@@ -2189,51 +2358,56 @@ function Invoke-OneClickFull {
                 $envProxy = $env:HTTP_PROXY -or $env:http_proxy -or $env:ALL_PROXY -or $env:all_proxy
                 if ($envProxy) {
                     $detectedProxy = $envProxy
-                    Write-ColorOutput DarkGray "使用代理: $envProxy"
+                    Write-Host "   → 检测到环境变量代理: $envProxy" -ForegroundColor DarkGray
                 }
             }
 
-            # 如果检测到代理，配置给 git 使用
+            if (!$detectedProxy) {
+                Write-Host "   → 使用直连" -ForegroundColor DarkGray
+            }
+
+            # 步骤2: 解除文件忽略标记
+            Write-StepMessage "解除文件忽略标记..." "INFO"
+            $beforePull = git ls-files -v | Where-Object { $_ -match "^h" }
+            if ($beforePull) {
+                $markedFiles = @($beforePull)
+                Write-Host "   → 解除 $($markedFiles.Count) 个文件的忽略标记" -ForegroundColor DarkGray
+                foreach ($file in $markedFiles) {
+                    $filePath = $file.Substring(2)
+                    git update-index --no-assume-unchanged $filePath 2>&1 | Out-Null
+                }
+            } else {
+                Write-Host "   → 无需解除" -ForegroundColor DarkGray
+            }
+
+            # 步骤3: 配置代理并拉取
             if ($detectedProxy) {
                 git config http.proxy $detectedProxy
                 git config https.proxy $detectedProxy
             }
 
-            # 清除 assume-unchanged 标记，以便 git pull 能正常更新文件
-            $beforePull = git ls-files -v | Where-Object { $_ -match "^h" }
-            if ($beforePull) {
-                $markedFiles = @($beforePull)
-                Write-ColorOutput DarkGray "临时解除 $($markedFiles.Count) 个文件的忽略标记..."
-                foreach ($file in $markedFiles) {
-                    $filePath = $file.Substring(2)
-                    git update-index --no-assume-unchanged $filePath 2>&1 | Out-Null
-                }
-            }
-
-            Write-ColorOutput Yellow "执行 git pull..."
-
-            # 智能拉取（处理代理问题）
-            $result = git pull 2>&1
-            $success = $LASTEXITCODE -eq 0
+            Write-StepMessage "从远程仓库拉取最新代码..." "INFO"
+            $pullResult = Invoke-GitCommandWithProgress -Command "pull" -Message "   → 拉取代码"
+            $success = $pullResult.Success
 
             if (!$success -and $detectedProxy) {
                 # 如果检测到代理但拉取失败，尝试直连
-                Write-ColorOutput Yellow "代理连接失败，尝试直连..."
+                Write-StepMessage "代理连接失败，尝试直连..." "WARNING"
                 git config --unset http.proxy
                 git config --unset https.proxy
-                $result = git pull 2>&1
-                $success = $LASTEXITCODE -eq 0
+                $pullResult = Invoke-GitCommandWithProgress -Command "pull" -Message "   → 直连拉取"
+                $success = $pullResult.Success
             }
 
             Pop-Location
 
             if ($success) {
-                Write-ColorOutput Green "代码已更新！"
+                Write-StepMessage "代码已更新！" "SUCCESS"
             } else {
-                Write-ColorOutput Yellow "拉取失败（可能网络问题），继续使用本地版本"
+                Write-StepMessage "拉取失败（可能网络问题），继续使用本地版本" "WARNING"
             }
         } else {
-            Write-ColorOutput Yellow "跳过拉取，使用本地版本"
+            Write-StepMessage "跳过拉取，使用本地版本" "INFO"
             Pop-Location
         }
     } else {
