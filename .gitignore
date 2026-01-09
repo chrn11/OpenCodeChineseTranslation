@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+opencode.exe
+*.log
+
+# Temporary files
+backup/
+opencode-fresh/
+opencode-latest/
+opencode-test/
+script_backup/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Backup files
+opencode-i18n.json.backup
