@@ -392,6 +392,40 @@ function Show-VersionInfo {
 
             Push-Location $SRC_DIR
 
+            # 检测并配置系统代理
+            $detectedProxy = $null
+            $commonProxyPorts = @(7890, 7891, 10809, 10808, 1087, 1080, 8080)
+
+            # 检查常见的代理端口
+            foreach ($port in $commonProxyPorts) {
+                try {
+                    $tcp = New-Object System.Net.Sockets.TcpClient
+                    $tcp.ReceiveTimeout = 500
+                    $tcp.Connect("127.0.0.1", $port)
+                    $tcp.Close()
+                    $detectedProxy = "http://127.0.0.1:$port"
+                    Write-ColorOutput DarkGray "   使用代理: 127.0.0.1:$port"
+                    break
+                } catch {
+                    # 端口未开放，继续检查下一个
+                }
+            }
+
+            # 检查环境变量中的代理
+            if (!$detectedProxy) {
+                $envProxy = $env:HTTP_PROXY -or $env:http_proxy -or $env:ALL_PROXY -or $env:all_proxy
+                if ($envProxy) {
+                    $detectedProxy = $envProxy
+                    Write-ColorOutput DarkGray "   使用代理: $envProxy"
+                }
+            }
+
+            # 如果检测到代理，配置给 git 使用
+            if ($detectedProxy) {
+                git config http.proxy $detectedProxy
+                git config https.proxy $detectedProxy
+            }
+
             # 清除 assume-unchanged 标记
             $beforePull = git ls-files -v | Where-Object { $_ -match "^h" }
             if ($beforePull) {
@@ -406,6 +440,15 @@ function Show-VersionInfo {
             # 执行拉取
             $result = git pull 2>&1
             $success = $LASTEXITCODE -eq 0
+
+            if (!$success -and $detectedProxy) {
+                # 如果检测到代理但拉取失败，尝试直连
+                Write-ColorOutput Yellow "   代理连接失败，尝试直连..."
+                git config --unset http.proxy
+                git config --unset https.proxy
+                $result = git pull 2>&1
+                $success = $LASTEXITCODE -eq 0
+            }
 
             Pop-Location
 
@@ -1273,6 +1316,42 @@ function Update-Source {
         return
     }
 
+    # 检测并配置系统代理
+    $detectedProxy = $null
+    $commonProxyPorts = @(7890, 7891, 10809, 10808, 1087, 1080, 8080, 10809)
+
+    Write-ColorOutput Yellow "检测代理设置..."
+
+    # 检查常见的代理端口
+    foreach ($port in $commonProxyPorts) {
+        try {
+            $tcp = New-Object System.Net.Sockets.TcpClient
+            $tcp.ReceiveTimeout = 1000
+            $tcp.Connect("127.0.0.1", $port)
+            $tcp.Close()
+            $detectedProxy = "http://127.0.0.1:$port"
+            Write-ColorOutput Green "   检测到本地代理: 127.0.0.1:$port"
+            break
+        } catch {
+            # 端口未开放，继续检查下一个
+        }
+    }
+
+    # 检查环境变量中的代理
+    if (!$detectedProxy) {
+        $envProxy = $env:HTTP_PROXY -or $env:http_proxy -or $env:ALL_PROXY -or $env:all_proxy
+        if ($envProxy) {
+            $detectedProxy = $envProxy
+            Write-ColorOutput Green "   检测到环境变量代理: $envProxy"
+        }
+    }
+
+    # 如果检测到代理，临时配置给 git 使用
+    if ($detectedProxy) {
+        git config http.proxy $detectedProxy
+        git config https.proxy $detectedProxy
+    }
+
     # 清除 assume-unchanged 标记，以便 git pull 能正常更新文件
     Write-ColorOutput Yellow "准备拉取..."
     $beforePull = git ls-files -v | Where-Object { $_ -match "^h" }
@@ -1292,28 +1371,13 @@ function Update-Source {
     $success = $LASTEXITCODE -eq 0
 
     if (!$success) {
-        # 检查是否是代理错误
-        if ($result -match "127\.0\.0\.1" -or $result -match "proxy" -or $result -match "Could not connect") {
-            Write-ColorOutput Yellow "检测到代理问题，尝试自动修复..."
-
-            # 临时清除代理
-            $oldHttpProxy = git config --get http.proxy
-            $oldHttpsProxy = git config --get https.proxy
-
+        # 如果检测到代理但拉取失败，尝试清除代理重试
+        if ($detectedProxy) {
+            Write-ColorOutput Yellow "代理连接失败，尝试直连..."
             git config --unset http.proxy
             git config --unset https.proxy
-
-            Write-ColorOutput Yellow "重试拉取..."
             $result = git pull 2>&1
             $success = $LASTEXITCODE -eq 0
-
-            # 恢复代理设置（如果之前有）
-            if ($oldHttpProxy) {
-                git config http.proxy $oldHttpProxy
-            }
-            if ($oldHttpsProxy) {
-                git config https.proxy $oldHttpsProxy
-            }
         }
     }
 
@@ -1324,7 +1388,8 @@ function Update-Source {
         Write-Output ""
         Write-ColorOutput Yellow "建议：运行 [2] 应用汉化 重新翻译"
     } else {
-        Write-ColorOutput Yellow "git pull 失败（可能网络问题），但不影响汉化"
+        Write-ColorOutput Yellow "git pull 失败，请检查网络连接"
+        Write-Output "$result"
     }
 
     Write-Output ""
@@ -2100,6 +2165,40 @@ function Invoke-OneClickFull {
 
         $pullConfirm = Read-Host "检测到新版本，是否拉取？(Y/n)"
         if ($pullConfirm -ne "n" -and $pullConfirm -ne "N") {
+            # 检测并配置系统代理
+            $detectedProxy = $null
+            $commonProxyPorts = @(7890, 7891, 10809, 10808, 1087, 1080, 8080)
+
+            # 检查常见的代理端口
+            foreach ($port in $commonProxyPorts) {
+                try {
+                    $tcp = New-Object System.Net.Sockets.TcpClient
+                    $tcp.ReceiveTimeout = 500
+                    $tcp.Connect("127.0.0.1", $port)
+                    $tcp.Close()
+                    $detectedProxy = "http://127.0.0.1:$port"
+                    Write-ColorOutput DarkGray "使用代理: 127.0.0.1:$port"
+                    break
+                } catch {
+                    # 端口未开放，继续检查下一个
+                }
+            }
+
+            # 检查环境变量中的代理
+            if (!$detectedProxy) {
+                $envProxy = $env:HTTP_PROXY -or $env:http_proxy -or $env:ALL_PROXY -or $env:all_proxy
+                if ($envProxy) {
+                    $detectedProxy = $envProxy
+                    Write-ColorOutput DarkGray "使用代理: $envProxy"
+                }
+            }
+
+            # 如果检测到代理，配置给 git 使用
+            if ($detectedProxy) {
+                git config http.proxy $detectedProxy
+                git config https.proxy $detectedProxy
+            }
+
             # 清除 assume-unchanged 标记，以便 git pull 能正常更新文件
             $beforePull = git ls-files -v | Where-Object { $_ -match "^h" }
             if ($beforePull) {
@@ -2117,18 +2216,13 @@ function Invoke-OneClickFull {
             $result = git pull 2>&1
             $success = $LASTEXITCODE -eq 0
 
-            if (!$success) {
-                if ($result -match "127\.0\.0\.1" -or $result -match "proxy" -or $result -match "Could not connect") {
-                    Write-ColorOutput Yellow "检测到代理问题，尝试自动修复..."
-                    $oldHttpProxy = git config --get http.proxy
-                    $oldHttpsProxy = git config --get https.proxy
-                    git config --unset http.proxy
-                    git config --unset https.proxy
-                    $result = git pull 2>&1
-                    $success = $LASTEXITCODE -eq 0
-                    if ($oldHttpProxy) { git config http.proxy $oldHttpProxy }
-                    if ($oldHttpsProxy) { git config https.proxy $oldHttpsProxy }
-                }
+            if (!$success -and $detectedProxy) {
+                # 如果检测到代理但拉取失败，尝试直连
+                Write-ColorOutput Yellow "代理连接失败，尝试直连..."
+                git config --unset http.proxy
+                git config --unset https.proxy
+                $result = git pull 2>&1
+                $success = $LASTEXITCODE -eq 0
             }
 
             Pop-Location
