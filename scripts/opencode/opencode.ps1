@@ -4,11 +4,16 @@
 
 # 配置路径 (使用脚本所在目录，自动适配)
 $SCRIPT_DIR = if ($PSScriptRoot) { $PSScriptRoot } else { "." }
-# 脚本在 scripts/ 子目录中，需要获取项目根目录
-$PROJECT_DIR = if (Test-Path "$SCRIPT_DIR\..\opencode-i18n") {
-    (Resolve-Path "$SCRIPT_DIR\..").Path
+# 脚本在 scripts/opencode/ 子目录中，需要获取项目根目录
+$PROJECT_DIR = if (Test-Path "$SCRIPT_DIR\..\..\opencode-i18n") {
+    (Resolve-Path "$SCRIPT_DIR\..\..").Path
 } else {
-    $SCRIPT_DIR
+    # 备用：直接使用脚本父目录的父目录
+    if (Test-Path "$SCRIPT_DIR\..\..") {
+        (Resolve-Path "$SCRIPT_DIR\..\..").Path
+    } else {
+        $SCRIPT_DIR
+    }
 }
 $SRC_DIR = "$PROJECT_DIR\opencode-zh-CN"
 $PACKAGE_DIR = "$SRC_DIR\packages\opencode"
@@ -4819,12 +4824,12 @@ if (!(Test-Path $SRC_DIR) -or !(Test-Path "$SRC_DIR\.git")) {
     Write-Host ""
 
     # 调用 init.ps1 自动初始化
-    $initScript = "$PROJECT_DIR\scripts\init.ps1"
+    $initScript = "$PROJECT_DIR\scripts\opencode\init.ps1"
     if (Test-Path $initScript) {
         & $initScript
         # 如果初始化失败，退出
         if (!(Test-Path $SRC_DIR) -or !(Test-Path "$SRC_DIR\.git")) {
-            Write-ColorOutput Red "初始化失败，请检查网络连接或手动运行: .\scripts\init.ps1"
+            Write-ColorOutput Red "初始化失败，请检查网络连接或手动运行: .\scripts\opencode\init.ps1"
             exit 1
         }
     } else {
