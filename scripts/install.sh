@@ -1,6 +1,6 @@
 #!/bin/bash
 # ========================================
-# OpenCode 汉化版 - 一键安装脚本 v2.4
+# OpenCode 汉化版 - 一键安装脚本 v2.5
 # Linux/macOS 完整安装
 # 使用方式: curl -fsSL https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation/raw/main/scripts/install.sh | bash
 # ========================================
@@ -73,6 +73,23 @@ cleanup_old_scripts() {
         echo -e "${GRAY}  无需清理${NC}"
     fi
     echo ""
+}
+
+# 安装 Bun
+install_bun() {
+    print_info "安装 Bun (构建工具)..."
+
+    # 使用官方安装脚本
+    if curl -fsSL https://bun.sh/install | bash; then
+        # 添加 bun 到 PATH
+        export BUN_INSTALL="$HOME/.bun"
+        export PATH="$BUN_INSTALL/bin:$PATH"
+        print_success "Bun 已安装: $(bun --version)"
+        return 0
+    else
+        print_error "Bun 安装失败"
+        return 1
+    fi
 }
 
 print_banner
@@ -259,6 +276,13 @@ if ! has_cmd node; then
         print_error "无法自动安装 Node.js，请手动安装"
         exit 1
     fi
+fi
+
+# 检查并安装 Bun（构建工具）
+if ! has_cmd bun; then
+    install_bun
+else
+    print_success "Bun: $(bun --version)"
 fi
 echo ""
 

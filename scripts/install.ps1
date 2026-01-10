@@ -1,5 +1,5 @@
 # ========================================
-# OpenCode 汉化版 - 一键安装脚本 v2.4
+# OpenCode 汉化版 - 一键安装脚本 v2.5
 # Windows 完整安装
 # 使用方式: irm https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation/raw/main/scripts/install.ps1 | iex
 # ========================================
@@ -74,6 +74,33 @@ function Cleanup-OldScripts {
         Write-Host "  无需清理" -ForegroundColor Gray
     }
     Write-Host ""
+}
+
+# 安装 Bun
+function Install-Bun {
+    Write-Host "  安装 Bun (构建工具)..." -ForegroundColor Gray
+
+    # 使用官方安装脚本
+    $bunInstallScript = "irm bun.sh/install.ps1|iex"
+    try {
+        Invoke-Expression $bunInstallScript
+
+        # 添加 bun 到 PATH
+        $bunPath = "$env:USERPROFILE\.bun\bin"
+        if ($env:Path -notlike "*$bunPath*") {
+            $env:Path = "$bunPath;$env:Path"
+        }
+
+        $version = & bun --version 2>$null
+        if ($version) {
+            Write-Host "  ✓ Bun 已安装: $version" -ForegroundColor Green
+            return $true
+        }
+    } catch {
+        Write-Host "  ✗ Bun 安装失败" -ForegroundColor Red
+    }
+
+    return $false
 }
 
 # 检测命令
@@ -216,6 +243,13 @@ if (-not (Has-Command "node")) {
         codes install 1 *> $null
         Print-Success "Node.js 已安装"
     }
+}
+
+# 检查并安装 Bun（构建工具）
+if (-not (Has-Command "bun")) {
+    Install-Bun
+} else {
+    Print-Success "Bun: $((bun --version) 2>$null)"
 }
 Write-Host ""
 
