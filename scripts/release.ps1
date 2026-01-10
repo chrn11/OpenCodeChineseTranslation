@@ -8,7 +8,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 # 配置
-$PROJECT_DIR = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+# release.ps1 在 scripts/ 目录，项目根是上一级
+$PROJECT_DIR = Split-Path -Parent $PSScriptRoot
 $DIST_DIR = "$PROJECT_DIR\opencode-zh-CN\packages\opencode\dist"
 $RELEASE_DIR = "$PROJECT_DIR\releases"
 $OPencode_DIR = "$PROJECT_DIR\opencode-zh-CN\packages\opencode"

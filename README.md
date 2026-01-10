@@ -16,6 +16,13 @@
 
 **OpenCode 中文汉化版**是对 OpenCode 项目的本地化改造，通过模块化汉化配置和自动化脚本实现完整中文化，降低国内用户使用门槛。
 
+<!-- 截图展示 -->
+<p align="center">
+  <img src="docs/0.png" alt="OpenCode 主界面" width="800">
+  <img src="docs/1.png" alt="Plan 模式" width="800">
+  <img src="docs/2.png" alt="AI 对话" width="800">
+</p>
+
 **核心功能：**
 - 🤖 AI 辅助编程 - 解释代码、添加功能、重构修改
 - 📋 Plan 模式 - 先规划后实施，支持图片参考和迭代讨论
