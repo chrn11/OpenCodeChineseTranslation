@@ -19,12 +19,12 @@
   "author": "CodeCreator",
   "license": "MIT",
   "dependencies": {
-    "chalk": "^4.1.2",
-    "ora": "^5.4.1",
-    "cli-spinners": "^2.9.2",
-    "commander": "^9.5.0",
-    "inquirer": "^8.2.5",
-    "glob": "^10.4.5"
+    "chalk": "4.1.2",
+    "ora": "5.4.1",
+    "cli-spinners": "2.9.2",
+    "commander": "9.5.0",
+    "inquirer": "8.2.5",
+    "glob": "10.4.5"
   },
   "engines": {
     "node": ">=18.0.0"

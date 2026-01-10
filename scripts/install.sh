@@ -1,6 +1,6 @@
 #!/bin/bash
 # ========================================
-# OpenCode 汉化版 - 一键安装脚本 v2.2
+# OpenCode 汉化版 - 一键安装脚本 v2.4
 # Linux/macOS 完整安装
 # 使用方式: curl -fsSL https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation/raw/main/scripts/install.sh | bash
 # ========================================

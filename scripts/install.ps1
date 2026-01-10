@@ -1,5 +1,5 @@
 # ========================================
-# OpenCode 汉化版 - 一键安装脚本 v2.2
+# OpenCode 汉化版 - 一键安装脚本 v2.4
 # Windows 完整安装
 # 使用方式: irm https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation/raw/main/scripts/install.ps1 | iex
 # ========================================
@@ -185,9 +185,26 @@ Write-Host ""
 # ==================== 4/7 安装依赖 ====================
 Print-Step "4/7 安装依赖..."
 
+$codesBinDir = "$env:USERPROFILE\.codes\bin"
+
 if (-not (Has-Command "codes")) {
     if (Test-Path "$PROJECT_DIR\scripts\codes\codes.ps1") {
         & "$PROJECT_DIR\scripts\codes\codes.ps1" install-self *> $null
+
+        # 添加 codes 到 PATH（当前会话 + 持久化）
+        if (-not (Test-Path $codesBinDir)) {
+            New-Item -ItemType Directory -Path $codesBinDir -Force | Out-Null
+        }
+
+        if ($env:Path -notlike "*$codesBinDir*") {
+            $env:Path = "$codesBinDir;$env:Path"
+        }
+
+        $pathEnv = [Environment]::GetEnvironmentVariable("Path", "User")
+        if ($pathEnv -notlike "*$codesBinDir*") {
+            [Environment]::SetEnvironmentVariable("Path", "$pathEnv;$codesBinDir", "User")
+        }
+
         Print-Success "Codes 已安装"
     }
 } else {
