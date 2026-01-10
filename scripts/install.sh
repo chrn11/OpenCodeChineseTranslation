@@ -1,28 +1,24 @@
 #!/bin/bash
 # ========================================
-# OpenCode 汉化版 - 一键安装脚本 v2.1
+# OpenCode 汉化版 - 一键安装脚本 v2.2
 # Linux/macOS 完整安装
 # 使用方式: curl -fsSL https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation/raw/main/scripts/install.sh | bash
 # ========================================
 
 set -e
 
-# 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
 WHITE='\033[1;37m'
 GRAY='\033[0;37m'
 NC='\033[0m'
 
-# 打印函数
 print_banner() {
     clear
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${NC}${WHITE}     OpenCode 中文汉化版 - 一键安装脚本 v2.1            ${NC}${CYAN}║${NC}"
+    echo -e "${CYAN}║${NC}${WHITE}     OpenCode 中文汉化版 - 一键安装脚本 v2.2            ${NC}${CYAN}║${NC}"
     echo -e "${CYAN}║${NC}${WHITE}     Linux/macOS                                           ${NC}${CYAN}║${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
@@ -44,6 +40,44 @@ print_info() {
     echo -e "${GRAY}  $1${NC}"
 }
 
+# 清理旧脚本
+cleanup_old_scripts() {
+    echo -e "${GRAY}[清理] 检查旧脚本...${NC}"
+
+    local cleaned=false
+
+    # 清理旧的全局命令
+    if [ -f "$HOME/.local/bin/opencodecmd" ]; then
+        rm -f "$HOME/.local/bin/opencodecmd"
+        echo -e "${GRAY}  ✓ 删除旧的 opencodecmd${NC}"
+        cleaned=true
+    fi
+
+    # 清理旧的 Codes 脚本
+    if [ -f "$HOME/.local/bin/codes" ]; then
+        rm -f "$HOME/.local/bin/codes"
+        echo -e "${GRAY}  ✓ 删除旧的 codes 命令${NC}"
+        cleaned=true
+    fi
+
+    # 清理旧的 Codes 库目录
+    if [ -d "$HOME/.local/share/codes" ]; then
+        rm -rf "$HOME/.local/share/codes"
+        echo -e "${GRAY}  ✓ 删除旧的 Codes 库${NC}"
+        cleaned=true
+    fi
+
+    if [ "$cleaned" = true ]; then
+        echo -e "${GREEN}✓ 清理完成${NC}"
+    else
+        echo -e "${GRAY}  无需清理${NC}"
+    fi
+    echo ""
+}
+
+print_banner
+cleanup_old_scripts
+
 # 检测系统
 detect_os() {
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -55,68 +89,29 @@ detect_os() {
     fi
 }
 
-# 检查命令
 has_cmd() {
     command -v "$1" &> /dev/null
 }
 
-print_banner
-
-# ==================== 安装前确认 ====================
-echo -e "${CYAN}即将安装 OpenCode 中文汉化版${NC}"
-echo ""
-echo -e "${WHITE}安装内容包括:${NC}"
-echo -e "  ${GRAY}•${NC} OpenCode 源码 (从 Gitee/GitHub 克隆)"
-echo -e "  ${GRAY}•${NC} Codes 开发环境管理工具"
-echo -e "  ${GRAY}•${NC} Node.js 运行时 (如未安装)"
-echo -e "  ${GRAY}•${NC} 汉化管理工具 (opencode-linux)"
-echo -e "  ${GRAY}•${NC} 全局命令 opencodecmd"
-echo ""
-
-# 检测并显示安装目录
+# 确定安装目录
 CURRENT_DIR="$(pwd)"
 REPO_NAME="OpenCodeChineseTranslation"
 
 if [ -d "$CURRENT_DIR/.git" ] && [ -d "$CURRENT_DIR/opencode-i18n" ]; then
     PROJECT_DIR="$CURRENT_DIR"
-    INSTALL_TYPE="更新现有安装"
 elif [ -d "$HOME/$REPO_NAME/.git" ]; then
     PROJECT_DIR="$HOME/$REPO_NAME"
-    INSTALL_TYPE="更新现有安装"
 elif [ -z "$(ls -A "$CURRENT_DIR" 2>/dev/null)" ]; then
     PROJECT_DIR="$CURRENT_DIR"
-    INSTALL_TYPE="全新安装到当前目录"
 else
     PROJECT_DIR="$CURRENT_DIR/$REPO_NAME"
-    INSTALL_TYPE="全新安装到子目录"
 fi
 
-echo -e "${WHITE}安装信息:${NC}"
-echo -e "  ${GRAY}目录:${NC} $PROJECT_DIR"
-echo -e "  ${GRAY}类型:${NC} $INSTALL_TYPE"
-echo -e "  ${GRAY}平台:${NC} $(detect_os)"
+echo -e "${CYAN}开始安装 OpenCode 中文汉化版...${NC}"
+echo -e "${GRAY}目录: $PROJECT_DIR${NC}"
 echo ""
 
-# 显示可用命令
-echo -e "${WHITE}安装后可用命令:${NC}"
-echo -e "  ${YELLOW}opencodecmd${NC}        启动交互菜单"
-echo -e "  ${YELLOW}opencodecmd full${NC}    一键完整汉化流程"
-echo -e "  ${YELLOW}opencodecmd update${NC}  更新源码"
-echo -e "  ${YELLOW}opencodecmd apply${NC}   应用汉化"
-echo -e "  ${YELLOW}opencodecmd build${NC}   编译构建"
-echo ""
-
-# 确认安装
-echo -n "是否继续安装? [Y/n] "
-read -r -n 1 confirm
-echo ""
-if [[ "$confirm" =~ ^[Nn]$ ]]; then
-    echo -e "${YELLOW}安装已取消${NC}"
-    exit 0
-fi
-echo ""
-
-# ==================== 1. 检查环境 ====================
+# ==================== 1/7 检查环境 ====================
 print_step "1/7 检查系统环境..."
 OS_TYPE=$(detect_os)
 print_info "操作系统: $OS_TYPE"
