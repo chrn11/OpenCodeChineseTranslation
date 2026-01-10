@@ -27,10 +27,12 @@ const Version = require('./lib/version.js');
 /**
  * 打印标题
  */
-function printHeader() {
+async function printHeader() {
+  const versionInfo = await Version.check();
   console.log('');
   console.log(chalk.cyan('╔══════════════════════════════════════════════════════════╗'));
   console.log(chalk.cyan('║') + chalk.white.bold('       OpenCode 中文汉化管理工具 - Linux 版本           ') + chalk.cyan('║'));
+  console.log(chalk.cyan('║') + chalk.gray(`       脚本版本: v${versionInfo.script}                              `) + chalk.cyan('║'));
   console.log(chalk.cyan('╚══════════════════════════════════════════════════════════╝'));
   console.log('');
 }
@@ -185,7 +187,7 @@ program
 
 // 默认执行交互菜单
 program.action(async () => {
-  printHeader();
+  await printHeader();
 
   // 环境检查
   const envCheck = await Env.check();
