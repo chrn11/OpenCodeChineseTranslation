@@ -62,7 +62,14 @@ class I18n {
       return { files: 0, replacements: 0 };
     }
 
-    const targetPath = path.join(this.opencodeDir, config.file);
+    // OpenCode 源码在 packages/opencode/ 目录
+    // 如果路径不是以 packages/ 开头，自动添加前缀
+    let relativePath = config.file;
+    if (!relativePath.startsWith('packages/')) {
+      relativePath = path.join('packages/opencode', relativePath);
+    }
+
+    const targetPath = path.join(this.opencodeDir, relativePath);
 
     if (!fs.existsSync(targetPath)) {
       // 静默跳过不存在的文件
