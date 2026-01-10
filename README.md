@@ -12,9 +12,18 @@
 
 ### 项目简介
 
-OpenCode 中文汉化版是对 Anthropic 官方 OpenCode 项目的本地化改造。本项目通过模块化的汉化配置和自动化脚本，实现 OpenCode 的完整中文化，降低国内用户的使用门槛。
+> **OpenCode** 是由 [Anomaly Company](https://anomaly.company/) 开发的**开源 AI 编程代理**，提供终端界面 (TUI)、桌面应用和 IDE 扩展等多种使用方式。
 
-**解决的问题：**
+**OpenCode 中文汉化版**是对 OpenCode 项目的本地化改造，通过模块化汉化配置和自动化脚本实现完整中文化，降低国内用户使用门槛。
+
+**核心功能：**
+- 🤖 AI 辅助编程 - 解释代码、添加功能、重构修改
+- 📋 Plan 模式 - 先规划后实施，支持图片参考和迭代讨论
+- ↩️ 撤销/重做 - `/undo` 和 `/redo` 命令轻松回退
+- 🔗 对话分享 - 生成链接与团队协作
+- 🔌 多模型支持 - 兼容各类 LLM 提供商
+
+**本项目解决的问题：**
 
 | 问题 | 解决方案 |
 |------|----------|
@@ -276,7 +285,7 @@ git config --global https.proxy http://127.0.0.1:端口
 
 本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
 
-OpenCode 原项目版权归 Anthropic 所有。
+OpenCode 原项目采用 MIT 许可证，版权归 [Anomaly Company](https://anomaly.company/) 所有。
 
 ---
 
@@ -284,6 +293,7 @@ OpenCode 原项目版权归 Anthropic 所有。
 
 - [OpenCode 官方仓库](https://github.com/anomalyco/opencode)
 - [OpenCode 官方文档](https://opencode.ai/docs)
+- [Anomaly Company](https://anomaly.company/)
 - [问题反馈](https://github.com/1186258278/OpenCodeChineseTranslation/issues)
 - [更新日志](CHANGELOG.md)
 

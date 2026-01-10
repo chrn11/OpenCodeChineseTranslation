@@ -10,7 +10,16 @@ English | [中文版](README.md)
 
 ## Overview
 
-OpenCode Chinese Localization is a modification of the official Anthropic OpenCode project that provides complete Chinese translation. This project uses modular configuration and automated scripts to localize OpenCode, making it more accessible to Chinese-speaking users.
+> **OpenCode** is an **open-source AI coding agent** developed by [Anomaly Company](https://anomaly.company/), available as a terminal-based interface (TUI), desktop app, and IDE extension.
+
+**OpenCode Chinese Localization** provides complete Chinese translation for OpenCode through modular configuration and automated scripts, making it more accessible to Chinese-speaking users.
+
+**Key Features:**
+- 🤖 AI-Assisted Coding - Explain code, add features, refactor changes
+- 📋 Plan Mode - Plan before implementing, support image references and iterative discussion
+- ↩️ Undo/Redo - Easy rollback with `/undo` and `/redo` commands
+- 🔗 Conversation Sharing - Generate links for team collaboration
+- 🔌 Multi-Model Support - Compatible with various LLM providers
 
 **Problems Solved:**
 
@@ -274,7 +283,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 This project is licensed under MIT License. See [LICENSE](LICENSE) for details.
 
-OpenCode original project is copyrighted by Anthropic.
+OpenCode original project is licensed under MIT, copyrighted by [Anomaly Company](https://anomaly.company/).
 
 ---
 
@@ -282,6 +291,7 @@ OpenCode original project is copyrighted by Anthropic.
 
 - [OpenCode Official Repository](https://github.com/anomalyco/opencode)
 - [OpenCode Documentation](https://opencode.ai/docs)
+- [Anomaly Company](https://anomaly.company/)
 - [Issue Tracker](https://github.com/1186258278/OpenCodeChineseTranslation/issues)
 - [中文文档](README.md)
 
