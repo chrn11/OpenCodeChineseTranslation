@@ -1216,10 +1216,8 @@ make_permanent() {
     # 写入配置文件
     echo -e "$config_content" >> "$rc_file"
 
-    print_color "${GREEN}" "  ✓ 永久配置已写入"
-    print_color "${YELLOW}" "  ! 请运行以下命令使配置生效:"
-    print_color "${WHITE}" "     source $rc_file"
-    print_color "${DARK_GRAY}" "     或重新打开终端"
+    print_color "${GREEN}" "  ✓ 永久配置已写入: $rc_file"
+    print_color "${GREEN}" "  ✓ 当前会话已自动加载，新终端窗口将自动生效"
     return 0
 }
 
@@ -1245,7 +1243,13 @@ auto_config() {
         return 0
     fi
 
-    make_permanent
+    if make_permanent; then
+        # 自动加载环境变量到当前会话
+        print_color "${CYAN}" "  → 正在加载环境变量到当前会话..."
+        load_nvm
+        load_bun
+        print_color "${GREEN}" "  ✓ 加载完成"
+    fi
     return $?
 }
 
@@ -1321,10 +1325,16 @@ cmd_env_permanent() {
     print_separator
     echo ""
 
-    make_permanent
+    if make_permanent; then
+        # 自动加载环境变量到当前会话
+        echo ""
+        print_color "${CYAN}" "  → 正在加载环境变量到当前会话..."
+        load_nvm
+        load_bun
+        print_color "${GREEN}" "  ✓ 加载完成"
+    fi
 
     echo ""
-    read -p "按回车键继续..."
 }
 
 # ==================== 主菜单 ====================
