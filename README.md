@@ -54,16 +54,35 @@
 
 > **适用于**：新服务器、全新开发环境、一键安装所有依赖
 
-#### Windows 一键安装
+#### 一键安装 Codes 管理工具（推荐）
+
+安装后自动获得 `codes` 全局命令，用于管理开发环境：
 
 ```powershell
-irm https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/init-dev-env.ps1 | iex
+# Windows PowerShell
+irm https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/install.sh | iex
 ```
 
-#### Linux/macOS 一键安装
+```bash
+# Linux/macOS
+curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/install.sh | bash
+```
+
+安装完成后重启终端，即可使用 `codes` 命令：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/init-dev-env.sh | bash
+# 环境诊断 - 检查所有工具状态
+codes doctor
+
+# 安装缺失的组件
+codes install
+
+# 切换 Node.js 版本
+codes node lts     # 切换到 LTS
+codes node 22      # 切换到 v22
+
+# 查看帮助
+codes --help
 ```
 
 #### 支持的组件
@@ -73,27 +92,22 @@ curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslati
 | Node.js + npm | @z_ai/coding-helper (智谱助手) |
 | Bun | OpenCode 中文汉化版 |
 | Git | Claude Code |
-| Docker | |
 | Python | |
+| Docker | |
 
-#### 交互模式
+#### Codes 命令参考
 
-安装后会显示菜单：
-- `[1]` 一键安装全部（推荐）
-- `[2]` 仅安装基础工具
-- `[3]` 仅安装 AI 工具
-- `[4]` 自定义选择
-- `[5]` 检查更新
+| 命令 | 说明 |
+|------|------|
+| `codes doctor` | 环境诊断 - 检查所有工具状态 |
+| `codes install` | 安装组件 - 安装缺失的工具 |
+| `codes upgrade` | 升级组件 - 升级已安装的工具 |
+| `codes node lts` | Node 管理 - 切换到 LTS 版本 |
+| `codes node 22` | Node 管理 - 切换到 v22 |
+| `codes helper` | 启动 coding-helper |
+| `codes env` | 显示环境变量 |
 
-#### 静默模式（自动安装所有）
-
-```powershell
-# Windows - 静默模式
-iex "& { irm https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/init-dev-env.ps1 | iex } -Quiet"
-
-# Linux/macOS - 静默模式
-curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/init-dev-env.sh | bash -s -- --quiet
-```
+> 详细文档请查看 [scripts/README.md](scripts/README.md)
 
 ---
 

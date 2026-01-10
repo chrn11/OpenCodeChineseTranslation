@@ -48,6 +48,67 @@ English | [中文版](README.md)
 
 ---
 
+## Development Environment Setup
+
+> **For**: New servers, fresh development environments, one-click installation of all dependencies
+
+### Install Codes Management Tool (Recommended)
+
+Get the `codes` global command for managing your development environment:
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/install.sh | iex
+```
+
+```bash
+# Linux/macOS
+curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/install.sh | bash
+```
+
+After installation, restart your terminal and use `codes` commands:
+
+```bash
+# Environment diagnosis - check all tools status
+codes doctor
+
+# Install missing components
+codes install
+
+# Switch Node.js version
+codes node lts     # Switch to LTS
+codes node 22      # Switch to v22
+
+# Show help
+codes --help
+```
+
+### Supported Components
+
+| Basic Tools | AI Tools |
+|-------------|----------|
+| Node.js + npm | @z_ai/coding-helper |
+| Bun | OpenCode Chinese Localization |
+| Git | Claude Code |
+| Python | |
+| Docker | |
+
+### Codes Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `codes doctor` | Environment diagnosis - check all tools status |
+| `codes install` | Install components - install missing tools |
+| `codes upgrade` | Upgrade components - upgrade installed tools |
+| `codes node lts` | Node management - switch to LTS version |
+| `codes node 22` | Node management - switch to v22 |
+| `codes helper` | Launch coding-helper |
+| `codes env` | Show environment variables |
+
+> For detailed documentation, see [scripts/README.md](scripts/README.md)
+
+---
+
 ## Installation
 
 ### Method 1: Quick Install
