@@ -391,22 +391,31 @@ install_coding_helper() {
         return 1
     fi
 
-    # 确保 npm bin 在 PATH 中
-    local npm_bin="$(npm bin -g 2>/dev/null)"
-    if [ -n "$npm_bin" ]; then
-        export PATH="$npm_bin:$PATH"
+    # 获取 npm 全局 bin 目录
+    local npm_bin="$(npm config get prefix 2>/dev/null)/bin"
+    if [ ! -d "$npm_bin" ]; then
+        npm_bin="$(npm bin -g 2>/dev/null)"
     fi
 
-    if has_cmd chelper || has_cmd coding-helper; then
+    # 检查是否已安装
+    if [ -n "$npm_bin" ] && [ -x "$npm_bin/coding-helper" ] || [ -x "$npm_bin/chelper" ]; then
         print_color "${YELLOW}" "  ⊙ coding-helper 已安装"
+        print_color "${DARK_GRAY}" "  ! 请运行: export PATH=\"$npm_bin:\$PATH\""
         return 0
     fi
 
     print_color "${DARK_GRAY}" "  使用国内镜像安装..."
     npm install -g @z_ai/coding-helper --registry=$NPM_REGISTRY 2>/dev/null
 
-    if has_cmd chelper || has_cmd coding-helper; then
+    # 重新获取 npm bin 路径
+    npm_bin="$(npm config get prefix 2>/dev/null)/bin"
+    if [ ! -d "$npm_bin" ]; then
+        npm_bin="$(npm bin -g 2>/dev/null)"
+    fi
+
+    if [ -n "$npm_bin" ] && [ -x "$npm_bin/coding-helper" ] || [ -x "$npm_bin/chelper" ]; then
         print_color "${GREEN}" "  ✓ coding-helper 安装成功"
+        print_color "${YELLOW}" "  ! 请运行: export PATH=\"$npm_bin:\$PATH\""
         return 0
     fi
 
@@ -414,12 +423,20 @@ install_coding_helper() {
     print_color "${YELLOW}" "  尝试官方源..."
     npm install -g @z_ai/coding-helper 2>/dev/null
 
-    if has_cmd chelper || has_cmd coding-helper; then
+    # 重新获取 npm bin 路径
+    npm_bin="$(npm config get prefix 2>/dev/null)/bin"
+    if [ ! -d "$npm_bin" ]; then
+        npm_bin="$(npm bin -g 2>/dev/null)"
+    fi
+
+    if [ -n "$npm_bin" ] && [ -x "$npm_bin/coding-helper" ] || [ -x "$npm_bin/chelper" ]; then
         print_color "${GREEN}" "  ✓ coding-helper 安装成功"
+        print_color "${YELLOW}" "  ! 请运行: export PATH=\"$npm_bin:\$PATH\""
         return 0
     fi
 
     print_color "${YELLOW}" "  ⊙ coding-helper 安装跳过（包不存在或网络问题）"
+    print_color "${DARK_GRAY}" "  ! 或使用 npx 方式: npx @z_ai/coding-helper"
     return 1
 }
 
