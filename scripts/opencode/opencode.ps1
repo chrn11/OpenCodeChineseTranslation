@@ -481,15 +481,31 @@ function Update-OpenCodeScript {
         $tempFile = "$env:TEMP\opencode_new.ps1"
         Invoke-RestMethod -Uri "$REPO_BASE_URL/opencode.ps1" -OutFile $tempFile -TimeoutSec 30
 
-        # 验证下载的版本
+        # 验证下载的版本（宽松模式：只要比当前新即可）
         $tempContent = Get-Content $tempFile -Raw
+        $downloadedVersion = $null
         if ($tempContent -match 'OpenCode 中文汉化版 - 管理工具 v([\d.]+)') {
             $downloadedVersion = $matches[1]
-            if ($downloadedVersion -ne $remoteVersion) {
-                Write-ColorOutput Red "  ✗ 版本验证失败"
-                Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-                Read-Host "按回车键继续"
-                return
+            # 版本比较：下载的版本应该 >= 当前版本
+            $currentParts = $SCRIPT_VERSION.Split('.')
+            $downloadedParts = $downloadedVersion.Split('.')
+            $isNewer = $false
+            for ($i = 0; $i -lt [Math]::Min($currentParts.Count, $downloadedParts.Count); $i++) {
+                if ([int]$downloadedParts[$i] -gt [int]$currentParts[$i]) {
+                    $isNewer = $true
+                    break
+                } elseif ([int]$downloadedParts[$i] -lt [int]$currentParts[$i]) {
+                    break
+                }
+            }
+            if (-not $isNewer -and $downloadedVersion -ne $remoteVersion) {
+                Write-Host "  ⚠ 镜像延迟 (v$downloadedVersion < v$remoteVersion)，尝试从 GitHub 下载..." -ForegroundColor Yellow
+                $tempFile = "$env:TEMP\opencode_github.ps1"
+                Invoke-RestMethod -Uri "https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/opencode/opencode.ps1" -OutFile $tempFile -TimeoutSec 30
+                $tempContent = Get-Content $tempFile -Raw
+                if ($tempContent -match 'OpenCode 中文汉化版 - 管理工具 v([\d.]+)') {
+                    $downloadedVersion = $matches[1]
+                }
             }
         }
 
