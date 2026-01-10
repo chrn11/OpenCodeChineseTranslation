@@ -118,8 +118,17 @@ echo -e "  ${GRAY}• Codes 工具${NC}"
 echo -e "  ${GRAY}• 汉化管理工具${NC}"
 echo -e "  ${GRAY}• 全局命令 opencodecmd${NC}"
 echo ""
-echo -n -e "${YELLOW}按 Enter 继续，Ctrl+C 取消...${NC} "
-read
+
+# 检测是否为 TTY（交互式终端）
+if [ -t 0 ]; then
+    # 交互式终端，等待用户确认
+    echo -n -e "${YELLOW}按 Enter 继续，Ctrl+C 取消...${NC} "
+    read
+else
+    # 管道执行，显示提示后自动继续
+    echo -e "${YELLOW}[自动执行模式] 3秒后自动继续...${NC}"
+    sleep 3
+fi
 echo ""
 
 # ==================== 1/7 检查环境 ====================
