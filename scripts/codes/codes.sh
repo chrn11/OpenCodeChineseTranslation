@@ -224,15 +224,29 @@ record_check_time() {
 
 # 获取远程最新版本
 get_remote_version() {
-    # 先尝试 GitHub
-    local remote_version=$(curl -fsSL --max-time 5 "$REPO_URL/scripts/codes/codes.sh" 2>/dev/null | grep '^VERSION="' | head -1 | cut -d'"' -f2)
+    # 提取 version_base
+    local version_base="2.0"
 
-    # 失败则尝试 Gitee
-    if [ -z "$remote_version" ]; then
-        remote_version=$(curl -fsSL --max-time 5 "$REPO_URL_GITEE/scripts/codes/codes.sh" 2>/dev/null | grep '^VERSION="' | head -1 | cut -d'"' -f2)
+    # 获取远程仓库提交数（通过 GitHub API）
+    local remote_commits=$(curl -fsSL --max-time 5 "https://api.github.com/repos/1186258278/OpenCodeChineseTranslation/commits?per_page=1" 2>/dev/null | grep -oP '(?<="total":)\d+' | head -1)
+
+    # 备用方法：获取最新 commit 的 SHA
+    if [ -z "$remote_commits" ]; then
+        # 无法获取精确提交数，使用本地提交数+1 作为估算
+        local local_commits=$(git rev-list --count HEAD 2>/dev/null)
+        if [ -n "$local_commits" ]; then
+            echo "${version_base}.$((local_commits + 1))"
+            return 0
+        fi
     fi
 
-    echo "$remote_version"
+    if [ -n "$remote_commits" ] && [ "$remote_commits" -gt 0 ]; then
+        echo "${version_base}.${remote_commits}"
+        return 0
+    fi
+
+    # 降级：返回空
+    echo ""
 }
 
 # 版本比较
@@ -329,10 +343,9 @@ cmd_update() {
         return 1
     fi
 
-    # 验证下载的版本
-    local downloaded_version=$(grep '^VERSION="' "$new_script" 2>/dev/null | head -1 | cut -d'"' -f2)
-    if [ "$downloaded_version" != "$remote_version" ]; then
-        print_color "${RED}" "  ✗ 版本验证失败"
+    # 验证下载的文件
+    if [ ! -s "$new_script" ]; then
+        print_color "${RED}" "  ✗ 下载文件为空"
         rm -f "$new_script"
         return 1
     fi

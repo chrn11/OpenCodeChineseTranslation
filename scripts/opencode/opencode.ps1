@@ -370,14 +370,28 @@ function Set-UpdateCheckTime {
 }
 
 function Get-RemoteScriptVersion {
+    $versionBase = "5.5"
+
     try {
-        $content = Invoke-RestMethod -Uri "$REPO_BASE_URL/opencode.ps1" -TimeoutSec 10 -ErrorAction Stop
-        if ($content -match 'OpenCode 中文汉化版 - 管理工具 v([\d.]+)') {
-            return $matches[1]
+        # 通过 GitHub API 获取提交数
+        $response = Invoke-RestMethod -Uri "https://api.github.com/repos/1186258278/OpenCodeChineseTranslation/commits?per_page=1" -TimeoutSec 5 -ErrorAction Stop
+        # 从 Link header 或 API 响应获取总提交数
+        if ($response.PSObject.Properties['total_count']) {
+            return "$versionBase.$($response.total_count)"
         }
     } catch {
-        return $null
+        # 备用：使用本地提交数+1 估算
+        try {
+            $localCommits = git -C $SCRIPT_DIR rev-list --count HEAD 2>$null
+            if ($localCommits) {
+                return "$versionBase.$([int]$localCommits + 1)"
+            }
+        } catch {
+            # 忽略
+        }
     }
+
+    # 最后降级：返回 null
     return $null
 }
 
