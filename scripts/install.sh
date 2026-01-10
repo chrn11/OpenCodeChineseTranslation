@@ -37,9 +37,9 @@ $SUDO_CMD mkdir -p "$LIB_DIR"
 echo "→ 下载 codes.sh..."
 
 # GitHub 源
-GITHUB_URL="https://raw.githubusercontent.com/$REPO/$BRANCH/scripts/codes.sh"
+GITHUB_URL="https://raw.githubusercontent.com/$REPO/$BRANCH/scripts/codes/codes.sh"
 # Gitee 备用源
-GITEE_URL="https://gitee.com/$REPO_GITEE/raw/main/scripts/codes.sh"
+GITEE_URL="https://gitee.com/$REPO_GITEE/raw/main/scripts/codes/codes.sh"
 
 downloaded=false
 if curl -fsSL --max-time 10 "$GITHUB_URL" -o "$LIB_DIR/codes.sh" 2>/dev/null; then
