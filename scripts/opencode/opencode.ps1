@@ -33,7 +33,7 @@ function Get-ScriptVersion {
 $SCRIPT_VERSION = Get-ScriptVersion
 $UPDATE_CHECK_FILE = "$env:USERPROFILE\.opencode\update_check"
 $UPDATE_CHECK_INTERVAL = 7  # 天数
-$REPO_BASE_URL = "https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/opencode"
+$REPO_BASE_URL = "https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation/raw/main/scripts/opencode"
 
 # 配置路径 (使用脚本所在目录，自动适配)
 $SCRIPT_DIR = if ($PSScriptRoot) { $PSScriptRoot } else { "." }

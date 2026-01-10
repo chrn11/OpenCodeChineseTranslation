@@ -73,8 +73,7 @@ NVM_INSTALL_SCRIPT="https://ghp.ci/https://raw.githubusercontent.com/nvm-sh/nvm/
 # 更新检查配置
 UPDATE_CHECK_FILE="$HOME/.codes/update_check"
 UPDATE_CHECK_INTERVAL=7  # 天数
-REPO_URL="https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main"
-REPO_URL_GITEE="https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation/raw/main"
+REPO_URL="https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation/raw/main"
 
 # ==================== 工具函数 ====================
 print_color() {
@@ -348,10 +347,8 @@ cmd_update() {
 
     if curl -fsSL --max-time 30 "$REPO_URL/scripts/codes/codes.sh" -o "$new_script" 2>/dev/null; then
         : # 成功
-    elif curl -fsSL --max-time 30 "$REPO_URL_GITEE/scripts/codes/codes.sh" -o "$new_script" 2>/dev/null; then
-        : # 成功（Gitee）
     else
-        print_color "${RED}" "  ✗ 下载失败"
+        print_color "${RED}" "  ✗ 下载失败，请检查网络连接"
         return 1
     fi
 
@@ -949,8 +946,8 @@ install_opencode_i18n() {
 
     mkdir -p "$opencode_dir" 2>/dev/null
 
-    # 从 GitHub 下载
-    local base_url="https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/opencode"
+    # 从 Gitee 下载
+    local base_url="https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation/raw/main/scripts/opencode"
 
     curl -fsSL "$base_url/opencode.ps1" -o "$opencode_dir/opencode.ps1" 2>/dev/null
     curl -fsSL "$base_url/init.ps1" -o "$opencode_dir/init.ps1" 2>/dev/null
