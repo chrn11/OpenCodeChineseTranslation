@@ -614,6 +614,20 @@ custom_install() {
 }
 
 # ==================== 主循环 ====================
+# 检测是否在管道模式（非交互）
+if [ ! -t 0 ]; then
+    # stdin 不是终端，说明是管道模式
+    print_color "$YELLOW" "检测到管道模式（非交互），自动执行一键安装..."
+    print_color "$DARK_GRAY" "如需交互模式，请先下载脚本再运行:"
+    echo ""
+    echo "  wget https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/init-dev-env.sh"
+    echo "  chmod +x init-dev-env.sh"
+    echo "  ./init-dev-env.sh"
+    echo ""
+    install_all
+    exit 0
+fi
+
 if [ "$QUIET" = true ]; then
     install_all
     exit 0
