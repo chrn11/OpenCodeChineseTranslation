@@ -1,6 +1,7 @@
 # ========================================
-# 开发环境一键初始化脚本 v1.0
-# 全平台支持: Windows / Linux / macOS
+# 开发环境一键初始化脚本 v1.2
+# 平台: Windows PowerShell
+# 特性: 安装汇总报告 + 国内镜像支持
 # ========================================
 
 param(
@@ -9,7 +10,15 @@ param(
     [switch]$SkipDocker = $false
 )
 
-# 颜色输出函数
+# 安装结果跟踪
+$Script:INSTALL_SUCCESS = @()
+$Script:INSTALL_FAILED = @()
+$Script:INSTALL_SKIPPED = @()
+
+# 国内镜像配置
+$Script:NPM_REGISTRY = "https://registry.npmmirror.com"
+
+# ==================== 工具函数 ====================
 function Write-ColorOutput {
     param(
         [string]$Message,
@@ -21,7 +30,8 @@ function Write-ColorOutput {
 function Write-Header {
     Clear-Host
     Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║     开发环境一键初始化脚本 v1.0                             ║" -ForegroundColor Cyan
+    Write-Host "║     开发环境一键初始化脚本 v1.2                             ║" -ForegroundColor Cyan
+    Write-Host "║     安装汇总报告 + 国内镜像支持                             ║" -ForegroundColor Cyan
     Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
 }
@@ -39,12 +49,79 @@ function Test-Command {
 function Get-InstalledVersion {
     param([string]$Command)
     try {
-        $version = & $Command --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        $version = & $Command --version 2>&1 | Select-Object -First 1
+        if ($LASTEXITCODE -eq 0 -or $?) {
             return "$version".Trim()
         }
     } catch {}
     return $null
+}
+
+# 记录安装结果
+function Add-Success {
+    param([string]$Item)
+    $Script:INSTALL_SUCCESS += $Item
+}
+
+function Add-Failed {
+    param([string]$Item, [string]$Reason)
+    $Script:INSTALL_FAILED += "$Item`: $Reason"
+}
+
+function Add-Skipped {
+    param([string]$Item)
+    $Script:INSTALL_SKIPPED += $Item
+}
+
+# 打印安装汇总报告
+function Show-Summary {
+    Write-Host ""
+    Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║                    安装汇总报告                             ║" -ForegroundColor Cyan
+    Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+
+    # 成功列表
+    if ($Script:INSTALL_SUCCESS.Count -gt 0) {
+        Write-Host "✓ 安装成功 ($($Script:INSTALL_SUCCESS.Count)):" -ForegroundColor Green
+        foreach ($item in $Script:INSTALL_SUCCESS) {
+            Write-Host "  ✔ $item" -ForegroundColor Green
+        }
+        Write-Host ""
+    }
+
+    # 跳过列表
+    if ($Script:INSTALL_SKIPPED.Count -gt 0) {
+        Write-Host "⊙ 已安装，跳过 ($($Script:INSTALL_SKIPPED.Count)):" -ForegroundColor Yellow
+        foreach ($item in $Script:INSTALL_SKIPPED) {
+            Write-Host "  ⊙ $item" -ForegroundColor Yellow
+        }
+        Write-Host ""
+    }
+
+    # 失败列表
+    if ($Script:INSTALL_FAILED.Count -gt 0) {
+        Write-Host "✗ 安装失败 ($($Script:INSTALL_FAILED.Count)):" -ForegroundColor Red
+        foreach ($item in $Script:INSTALL_FAILED) {
+            Write-Host "  ✗ $item" -ForegroundColor Red
+        }
+        Write-Host ""
+    }
+
+    # 统计
+    $total = $Script:INSTALL_SUCCESS.Count + $Script:INSTALL_FAILED.Count + $Script:INSTALL_SKIPPED.Count
+    $successRate = if ($total -gt 0) { [math]::Floor(100 * $Script:INSTALL_SUCCESS.Count / $total) } else { 0 }
+
+    Write-Separator
+    Write-Host "  总计: $total | 成功: $($Script:INSTALL_SUCCESS.Count) | 跳过: $($Script:INSTALL_SKIPPED.Count) | 失败: $($Script:INSTALL_FAILED.Count) | 成功率: $successRate%" -ForegroundColor White
+    Write-Separator
+    Write-Host ""
+
+    # 环境变量提示
+    if ($Script:INSTALL_SUCCESS.Count -gt 0) {
+        Write-Host "! 请重启终端使环境变量生效" -ForegroundColor Yellow
+        Write-Host ""
+    }
 }
 
 # ==================== 系统检测 ====================
@@ -84,374 +161,228 @@ function Show-SystemStatus {
 
 # ==================== 包管理器检测 ====================
 function Get-PackageManager {
-    # 检测可用的包管理器
-    if (Test-Command "winget") {
-        return "winget"
-    }
-    if (Get-Command "scoop" -ErrorAction SilentlyContinue) {
-        return "scoop"
-    }
-    if (Get-Command "choco" -ErrorAction SilentlyContinue) {
-        return "choco"
-    }
-    return $null
-}
-
-function Install-PackageManagerIfNeeded {
-    Write-ColorOutput Cyan "检查包管理器..."
-
-    $pm = Get-PackageManager
-    if ($pm) {
-        Write-ColorOutput Green "  ✓ 检测到包管理器: $pm"
-        return $pm
-    }
-
-    Write-ColorOutput Yellow "  ! 未检测到包管理器"
-    Write-Host ""
-    Write-Host "正在安装 winget..." -ForegroundColor Cyan
-
-    try {
-        # 尝试从 GitHub 安装 winget
-        $wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-        Write-ColorOutput DarkGray "  下载地址: $wingetUrl"
-        Write-ColorOutput Yellow "  请手动访问并安装 winget，或安装 Scoop:"
-        Write-Host ""
-        Write-Host "    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser" -ForegroundColor White
-        Write-Host "    irm get.scoop.sh | iex" -ForegroundColor White
-        Write-Host ""
-    } catch {
-        Write-ColorOutput Red "  自动安装失败，请手动安装包管理器"
-    }
-
+    if (Test-Command "winget") { return "winget" }
+    if (Get-Command "scoop" -ErrorAction SilentlyContinue) { return "scoop" }
+    if (Get-Command "choco" -ErrorAction SilentlyContinue) { return "choco" }
     return $null
 }
 
 # ==================== 组件安装 ====================
 function Install-NodeJS {
-    Write-ColorOutput Cyan "安装 Node.js..."
+    Write-ColorOutput Cyan "[1/4] 安装 Node.js..."
 
-    $pm = Get-PackageManager
-    $hasNode = Test-Command "node"
-
-    if ($hasNode) {
+    if (Test-Command "node") {
         $version = Get-InstalledVersion "node"
-        Write-ColorOutput Green "  ✓ Node.js 已安装: $version"
-
-        # 检查是否需要升级
-        Write-ColorOutput Yellow "  ? 是否升级到最新版本？(y/N)"
-        if ($Quiet -or $Host.UI.RawUI.KeyAvailable) {
-            $answer = "n"
-        } else {
-            $answer = Read-Host
-        }
-        if ($answer -eq "y" -or $answer -eq "Y") {
-            switch ($pm) {
-                "winget" { winget upgrade OpenJS.NodeJS }
-                "scoop" { scoop upgrade nodejs }
-                "choco" { choco upgrade nodejs }
-            }
-        }
+        Write-ColorOutput Yellow "  ⊙ Node.js 已安装: $version"
+        Add-Skipped "Node.js ($version)"
         return
     }
 
+    $pm = Get-PackageManager
+    $installed = $false
+
     switch ($pm) {
         "winget" {
-            winget install OpenJS.NodeJS --accept-package-agreements --accept-source-agreements
+            winget install OpenJS.NodeJS --accept-package-agreements --accept-source-agreements -h 2>$null
+            $installed = $?
         }
         "scoop" {
-            scoop install nodejs
+            scoop install nodejs 2>$null
+            $installed = $?
         }
         "choco" {
-            choco install nodejs -y
-        }
-        default {
-            Write-ColorOutput Yellow "  手动安装: https://nodejs.org/"
+            choco install nodejs -y 2>$null
+            $installed = $?
         }
     }
 
     if (Test-Command "node") {
-        Write-ColorOutput Green "  ✓ Node.js 安装成功"
+        $version = Get-InstalledVersion "node"
+        Write-ColorOutput Green "  ✓ Node.js 安装成功: $version"
+        Add-Success "Node.js ($version)"
+
+        # 配置 npm 国内镜像
+        npm config set registry $Script:NPM_REGISTRY 2>$null
+        Write-ColorOutput DarkGray "  ✓ npm 已配置国内镜像"
+    } else {
+        Write-ColorOutput Red "  ✗ Node.js 安装失败"
+        Write-ColorOutput Yellow "  请手动安装: https://nodejs.org/"
+        Add-Failed "Node.js" "请手动下载安装"
     }
 }
 
 function Install-Bun {
-    Write-ColorOutput Cyan "安装 Bun..."
+    Write-ColorOutput Cyan "[2/4] 安装 Bun..."
 
-    $hasBun = Test-Command "bun"
-
-    if ($hasBun) {
+    if (Test-Command "bun") {
         $version = Get-InstalledVersion "bun"
-        Write-ColorOutput Green "  ✓ Bun 已安装: $version"
+        Write-ColorOutput Yellow "  ⊙ Bun 已安装: $version"
+        Add-Skipped "Bun ($version)"
         return
     }
 
-    # Bun 提供了跨平台安装脚本
     Write-ColorOutput DarkGray "  使用官方安装脚本..."
     try {
-        irm bun.sh/install.ps1 | iex
+        irm bun.sh/install.ps1 | iex 2>$null
         if (Test-Command "bun") {
-            Write-ColorOutput Green "  ✓ Bun 安装成功"
+            $version = Get-InstalledVersion "bun"
+            Write-ColorOutput Green "  ✓ Bun 安装成功: $version"
+            Add-Success "Bun ($version)"
+            return
         }
-    } catch {
-        Write-ColorOutput Red "  ✗ Bun 安装失败: $_"
+    } catch {}
+
+    # 备用：使用 npm 安装
+    if (Test-Command "npm") {
+        Write-ColorOutput Yellow "  尝试使用 npm 安装..."
+        npm install -g bun 2>$null
+        if (Test-Command "bun") {
+            $version = Get-InstalledVersion "bun"
+            Write-ColorOutput Green "  ✓ Bun 安装成功 (通过 npm): $version"
+            Add-Success "Bun (via npm, $version)"
+            return
+        }
     }
+
+    Write-ColorOutput Yellow "  ⊙ Bun 安装跳过（网络问题）"
+    Write-ColorOutput DarkGray "  请手动安装: https://bun.sh/docs/installation"
+    Add-Failed "Bun" "网络连接失败"
 }
 
 function Install-Git {
-    Write-ColorOutput Cyan "安装 Git..."
+    Write-ColorOutput Cyan "[3/4] 安装 Git..."
 
-    $hasGit = Test-Command "git"
-
-    if ($hasGit) {
+    if (Test-Command "git") {
         $version = Get-InstalledVersion "git"
-        Write-ColorOutput Green "  ✓ Git 已安装: $version"
+        Write-ColorOutput Yellow "  ⊙ Git 已安装: $version"
+        Add-Skipped "Git ($version)"
         return
     }
 
     $pm = Get-PackageManager
     switch ($pm) {
         "winget" {
-            winget install Git.Git --accept-package-agreements --accept-source-agreements
+            winget install Git.Git --accept-package-agreements --accept-source-agreements -h 2>$null
         }
         "scoop" {
-            scoop install git
+            scoop install git 2>$null
         }
         "choco" {
-            choco install git -y
+            choco install git -y 2>$null
         }
     }
-}
 
-function Install-Docker {
-    Write-ColorOutput Cyan "安装 Docker..."
-
-    $hasDocker = Test-Command "docker"
-
-    if ($hasDocker) {
-        $version = Get-InstalledVersion "docker"
-        Write-ColorOutput Green "  ✓ Docker 已安装: $version"
-        return
-    }
-
-    $pm = Get-PackageManager
-    Write-ColorOutput Yellow "  Docker Desktop 需要手动安装或重启后生效"
-    switch ($pm) {
-        "winget" {
-            winget install Docker.DockerDesktop --accept-package-agreements --accept-source-agreements
-        }
-        "scoop" {
-            scoop install docker
-        }
-        "choco" {
-            choco install docker-desktop -y
-        }
+    if (Test-Command "git") {
+        Write-ColorOutput Green "  ✓ Git 安装成功"
+        Add-Success "Git"
+    } else {
+        Write-ColorOutput Red "  ✗ Git 安装失败"
+        Add-Failed "Git" "请手动安装"
     }
 }
 
 function Install-Python {
-    Write-ColorOutput Cyan "安装 Python..."
+    Write-ColorOutput Cyan "[4/4] 安装 Python..."
 
-    $hasPython = Test-Command "python"
-
-    if ($hasPython) {
+    if (Test-Command "python") {
         $version = Get-InstalledVersion "python"
-        Write-ColorOutput Green "  ✓ Python 已安装: $version"
+        Write-ColorOutput Yellow "  ⊙ Python 已安装: $version"
+        Add-Skipped "Python ($version)"
         return
     }
 
     $pm = Get-PackageManager
     switch ($pm) {
         "winget" {
-            winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements
+            winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements -h 2>$null
         }
         "scoop" {
-            scoop install python
+            scoop install python 2>$null
         }
         "choco" {
-            choco install python -y
+            choco install python -y 2>$null
         }
+    }
+
+    if (Test-Command "python") {
+        Write-ColorOutput Green "  ✓ Python 安装成功"
+        Add-Success "Python"
+    } else {
+        Write-ColorOutput Red "  ✗ Python 安装失败"
+        Add-Failed "Python" "请手动安装"
     }
 }
 
-# ==================== AI 工具安装 ====================
 function Install-CodingHelper {
     Write-ColorOutput Cyan "安装 @z_ai/coding-helper..."
 
-    $hasHelper = Test-Command "chelper"
-    $hasNpm = Test-Command "npm"
-
-    if (!$hasNpm) {
+    if (!(Test-Command "npm")) {
         Write-ColorOutput Red "  ✗ 需要先安装 npm"
+        Add-Failed "coding-helper" "npm 未安装"
         return
     }
 
-    if ($hasHelper) {
-        $version = npm list -g @z_ai/coding-helper 2>&1
-        Write-ColorOutput Green "  ✓ coding-helper 已安装"
-        Write-ColorOutput Yellow "  ? 是否升级？(y/N)"
-        $answer = if ($Quiet) { "n" } else { Read-Host }
-        if ($answer -eq "y" -or $answer -eq "Y") {
-            npm install -g @z_ai/coding-helper
-            Write-ColorOutput Green "  ✓ 升级完成"
-        }
+    if (Test-Command "chelper") {
+        Write-ColorOutput Yellow "  ⊙ coding-helper 已安装"
+        Add-Skipped "coding-helper"
         return
     }
 
-    Write-Host "  正在安装..." -ForegroundColor DarkGray
-    npm install -g @z_ai/coding-helper
+    Write-ColorOutput DarkGray "  使用国内镜像安装..."
+    npm install -g @z_ai/coding-helper --registry=$Script:NPM_REGISTRY 2>$null
 
     if (Test-Command "chelper") {
         Write-ColorOutput Green "  ✓ coding-helper 安装成功"
-        Write-Host "  运行命令: chelper 或 coding-helper" -ForegroundColor DarkGray
-    }
-}
-
-function Install-OpenCodeChinese {
-    Write-ColorOutput Cyan "安装 OpenCode 中文汉化版..."
-
-    $hasGit = Test-Command "git"
-    if (!$hasGit) {
-        Write-ColorOutput Red "  ✗ 需要先安装 Git"
-        return
-    }
-
-    $cloneDir = "$HOME\OpenCodeChineseTranslation"
-
-    if (Test-Path $cloneDir) {
-        Write-ColorOutput Yellow "  ! 目录已存在: $cloneDir"
-        Write-ColorOutput Yellow "  ? 是否重新克隆？(y/N)"
-        $answer = if ($Quiet) { "n" } else { Read-Host }
-        if ($answer -ne "y" -and $answer -ne "Y") {
-            Write-ColorOutput DarkGray "  跳过，使用现有目录"
-            Push-Location $cloneDir
+        Add-Success "coding-helper"
+    } else {
+        # 备用：官方源
+        Write-ColorOutput Yellow "  尝试官方源..."
+        npm install -g @z_ai/coding-helper 2>$null
+        if (Test-Command "chelper") {
+            Write-ColorOutput Green "  ✓ coding-helper 安装成功"
+            Add-Success "coding-helper"
         } else {
-            Remove-Item $cloneDir -Recurse -Force
-            git clone https://github.com/1186258278/OpenCodeChineseTranslation.git $cloneDir
-            Push-Location $cloneDir
+            Write-ColorOutput Red "  ✗ coding-helper 安装失败"
+            Add-Failed "coding-helper" "包不存在或网络问题"
         }
-    } else {
-        git clone https://github.com/1186258278/OpenCodeChineseTranslation.git $cloneDir
-        Push-Location $cloneDir
-    }
-
-    Write-Host ""
-    Write-Host "  正在初始化汉化版..." -ForegroundColor DarkGray
-
-    # 运行初始化和汉化
-    if (Test-Path ".\scripts\init.ps1") {
-        & .\scripts\init.ps1
-        Write-Host ""
-        Write-ColorOutput Green "  ✓ OpenCode 汉化版初始化完成"
-        Write-Host "  下一步: 运行 .\scripts\opencode.ps1 开始汉化" -ForegroundColor DarkGray
-    } else {
-        Write-ColorOutput Yellow "  ! 脚本未找到，请手动初始化"
-    }
-
-    Pop-Location
-}
-
-function Install-ClaudeCode {
-    Write-ColorOutput Cyan "安装 Claude Code..."
-
-    $hasNpm = Test-Command "npm"
-
-    if (!$hasNpm) {
-        Write-ColorOutput Red "  ✗ 需要先安装 npm"
-        return
-    }
-
-    $hasClaude = Test-Command "claude"
-
-    if ($hasClaude) {
-        Write-ColorOutput Green "  ✓ Claude Code 已安装"
-        return
-    }
-
-    npm install -g @anthropic-ai/claude-code
-
-    if (Test-Command "claude") {
-        Write-ColorOutput Green "  ✓ Claude Code 安装成功"
     }
 }
 
-# ==================== 主菜单 ====================
-function Show-Menu {
-    Write-Header
-    Show-SystemStatus
-
-    Write-Host "   ┌─── 安装模式 ─────────────────────────────────────────┐" -ForegroundColor Cyan
-    Write-Host "   │" -ForegroundColor Cyan
-    Write-Host "   │  [1]  一键安装全部 (推荐)" -ForegroundColor Green
-    Write-Host "   │  [2]  仅安装基础工具 (Node.js, Bun, Git, Docker)" -ForegroundColor Yellow
-    Write-Host "   │  [3]  仅安装 AI 工具" -ForegroundColor Magenta
-    Write-Host "   │  [4]  自定义选择" -ForegroundColor White
-    Write-Host "   │  [5]  检查更新" -ForegroundColor Cyan
-    Write-Host "   │" -ForegroundColor Cyan
-    Write-Host "   │  [0]  退出" -ForegroundColor Red
-    Write-Host "   │" -ForegroundColor Cyan
-    Write-Host "   └───────────────────────────────────────────────────────┘" -ForegroundColor Cyan
-    Write-Host ""
-}
-
+# ==================== 主安装流程 ====================
 function Install-All {
     Write-Header
     Write-ColorOutput Yellow "       一键安装全部组件"
     Write-Separator
     Write-Host ""
 
-    # 1. 安装包管理器
-    Install-PackageManagerIfNeeded
+    # 安装基础工具
+    Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    Write-ColorOutput Cyan "  第一阶段: 基础工具"
+    Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     Write-Host ""
 
-    # 2. 安装基础工具
-    Write-ColorOutput Cyan "[1/3] 安装基础工具..."
-    Write-Host ""
     Install-NodeJS
     Write-Host ""
     Install-Bun
     Write-Host ""
     Install-Git
     Write-Host ""
-    if (!$SkipDocker) {
-        Install-Docker
-        Write-Host ""
-    }
     Install-Python
     Write-Host ""
 
-    # 3. 安装 AI 工具
+    # 安装 AI 工具
     if (!$SkipAI) {
-        Write-ColorOutput Cyan "[2/3] 安装 AI 工具..."
+        Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        Write-ColorOutput Cyan "  第二阶段: AI 工具"
+        Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         Write-Host ""
+
         Install-CodingHelper
-        Write-Host ""
-
-        Write-Host "选择要安装的 AI 编程工具:" -ForegroundColor Yellow
-        Write-Host "  [1] OpenCode 中文汉化版" -ForegroundColor Green
-        Write-Host "  [2] Claude Code" -ForegroundColor Cyan
-        Write-Host "  [3] 都不安装" -ForegroundColor DarkGray
-        Write-Host ""
-        $aiChoice = if ($Quiet) { "3" } else { Read-Host "请选择" }
-
-        switch ($aiChoice) {
-            "1" { Install-OpenCodeChinese }
-            "2" { Install-ClaudeCode }
-        }
         Write-Host ""
     }
 
-    # 4. 完成
-    Write-ColorOutput Cyan "[3/3] 安装完成"
-    Write-Separator
-    Write-Host ""
-    Write-ColorOutput Green "╔════════════════════════════════════════════════════════════╗"
-    Write-ColorOutput Green "║          开发环境初始化完成！                               ║"
-    Write-ColorOutput Green "╚════════════════════════════════════════════════════════════╝"
-    Write-Host ""
-    Write-ColorOutput Cyan "下一步:"
-    Write-Host "  - coding-helper 或 chelper 启动智谱助手" -ForegroundColor White
-    Write-Host "  - 查看已安装工具版本，运行脚本并选择 [5]" -ForegroundColor White
-    Write-Host ""
+    # 显示汇总报告
+    Show-Summary
 }
 
 function Install-BasicTools {
@@ -460,24 +391,16 @@ function Install-BasicTools {
     Write-Separator
     Write-Host ""
 
-    Install-PackageManagerIfNeeded
-    Write-Host ""
-
     Install-NodeJS
     Write-Host ""
     Install-Bun
     Write-Host ""
     Install-Git
     Write-Host ""
-    if (!$SkipDocker) {
-        Install-Docker
-        Write-Host ""
-    }
     Install-Python
     Write-Host ""
 
-    Write-ColorOutput Green "基础工具安装完成！"
-    Write-Host ""
+    Show-Summary
 }
 
 function Install-AITools {
@@ -489,26 +412,24 @@ function Install-AITools {
     Install-CodingHelper
     Write-Host ""
 
-    Write-Host "选择要安装的 AI 编程工具:" -ForegroundColor Yellow
-    Write-Host "  [1] OpenCode 中文汉化版" -ForegroundColor Green
-    Write-Host "  [2] Claude Code" -ForegroundColor Cyan
-    Write-Host "  [3] 两者都安装" -ForegroundColor White
-    Write-Host "  [0] 返回" -ForegroundColor DarkGray
-    Write-Host ""
-    $aiChoice = Read-Host "请选择"
+    Show-Summary
+}
 
-    switch ($aiChoice) {
-        "1" { Install-OpenCodeChinese }
-        "2" { Install-ClaudeCode }
-        "3" {
-            Install-OpenCodeChinese
-            Write-Host ""
-            Install-ClaudeCode
-        }
-    }
+# ==================== 主菜单 ====================
+function Show-Menu {
+    Write-Header
+    Show-SystemStatus
 
-    Write-Host ""
-    Write-ColorOutput Green "AI 工具安装完成！"
+    Write-Host "   ┌─── 安装模式 ─────────────────────────────────────────┐" -ForegroundColor Cyan
+    Write-Host "   │" -ForegroundColor Cyan
+    Write-Host "   │  [1]  一键安装全部 (推荐)" -ForegroundColor Green
+    Write-Host "   │  [2]  仅安装基础工具 (Node.js, Bun, Git, Python)" -ForegroundColor Yellow
+    Write-Host "   │  [3]  仅安装 AI 工具" -ForegroundColor Magenta
+    Write-Host "   │  [4]  检查更新" -ForegroundColor Cyan
+    Write-Host "   │" -ForegroundColor Cyan
+    Write-Host "   │  [0]  退出" -ForegroundColor Red
+    Write-Host "   │" -ForegroundColor Cyan
+    Write-Host "   └───────────────────────────────────────────────────────┘" -ForegroundColor Cyan
     Write-Host ""
 }
 
@@ -518,82 +439,31 @@ function Check-Updates {
     Write-Separator
     Write-Host ""
 
-    Write-ColorOutput Cyan "检查可更新的组件..."
+    Write-ColorOutput Cyan "已安装组件版本:"
     Write-Host ""
 
     $tools = @{
         "Node.js" = "node"
         "Bun" = "bun"
         "npm" = "npm"
-        "@z_ai/coding-helper" = "chelper"
+        "Git" = "git"
+        "Python" = "python"
     }
 
-    $updates = @()
     foreach ($tool in $tools.GetEnumerator()) {
         $name = $tool.Key
         $cmd = $tool.Value
         if (Test-Command $cmd) {
             $version = Get-InstalledVersion $cmd
-            Write-Host "  [$name] 当前: $version" -ForegroundColor DarkGray
-            # TODO: 添加实际版本检查逻辑
+            Write-Host "  [$name] $version"
         }
     }
 
     Write-Host ""
-    Write-ColorOutput Yellow "提示: 使用各包管理器的 upgrade 命令更新"
-    Write-Host "  npm update -g @z_ai/coding-helper" -ForegroundColor DarkGray
+    Write-ColorOutput Yellow "更新命令:"
+    Write-Host "  winget upgrade --id OpenJS.NodeJS" -ForegroundColor DarkGray
     Write-Host "  bun upgrade" -ForegroundColor DarkGray
-    Write-Host ""
-}
-
-function Custom-Install {
-    Write-Header
-    Write-ColorOutput Yellow "       自定义安装"
-    Write-Separator
-    Write-Host ""
-
-    Write-Host "选择要安装的组件 (空格选择，回车确认):" -ForegroundColor Cyan
-    Write-Host ""
-
-    $choices = @(
-        "Node.js + npm",
-        "Bun",
-        "Git",
-        "Docker",
-        "Python",
-        "@z_ai/coding-helper",
-        "OpenCode 汉化版",
-        "Claude Code"
-    )
-
-    for ($i = 0; $i -lt $choices.Count; $i++) {
-        Write-Host "  [$($i+1)] $($choices[$i])"
-    }
-    Write-Host ""
-    Write-Host "输入编号 (如: 1 3 5):" -ForegroundColor Yellow
-
-    $selection = Read-Host
-    $selected = $selection -split '\s+' | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_-1 }
-
-    Write-Host ""
-
-    foreach ($idx in $selected) {
-        if ($idx -ge 0 -and $idx -lt $choices.Count) {
-            switch ($idx) {
-                0 { Install-NodeJS }
-                1 { Install-Bun }
-                2 { Install-Git }
-                3 { Install-Docker }
-                4 { Install-Python }
-                5 { Install-CodingHelper }
-                6 { Install-OpenCodeChinese }
-                7 { Install-ClaudeCode }
-            }
-            Write-Host ""
-        }
-    }
-
-    Write-ColorOutput Green "自定义安装完成！"
+    Write-Host "  npm update -g @z_ai/coding-helper" -ForegroundColor DarkGray
     Write-Host ""
 }
 
@@ -611,8 +481,7 @@ do {
         "1" { Install-All }
         "2" { Install-BasicTools }
         "3" { Install-AITools }
-        "4" { Custom-Install }
-        "5" { Check-Updates }
+        "4" { Check-Updates }
         "0" {
             Write-ColorOutput DarkGray "再见！"
             exit

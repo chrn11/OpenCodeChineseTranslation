@@ -200,8 +200,15 @@ install_nodejs() {
 
     print_color "$DARK_GRAY" "  使用 nvm 安装 Node.js..."
 
+    # 检查 nvm 目录是否已存在
+    if [ -d "$HOME/.nvm" ]; then
+        print_color "$YELLOW" "  nvm 目录已存在，直接加载..."
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    fi
+
     # 方法1: 尝试 Gitee 镜像
-    if ! command_exists nvm; then
+    if ! command_exists nvm && [ ! -d "$HOME/.nvm" ]; then
         print_color "$DARK_GRAY" "  方法1: 使用 Gitee 镜像安装 nvm..."
         if curl -o- "$NVM_MIRROR_CN" 2>/dev/null | bash 2>/dev/null; then
             export NVM_DIR="$HOME/.nvm"
@@ -210,7 +217,7 @@ install_nodejs() {
     fi
 
     # 方法2: 尝试官方源（带代理）
-    if ! command_exists nvm; then
+    if ! command_exists nvm && [ ! -d "$HOME/.nvm" ]; then
         print_color "$YELLOW" "  方法2: 使用官方源（可能较慢）..."
         if curl -o- "$NVM_MIRROR_ORIGINAL" 2>/dev/null | bash 2>/dev/null; then
             export NVM_DIR="$HOME/.nvm"
