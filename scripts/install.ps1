@@ -1,5 +1,5 @@
 # ========================================
-# Codes 一键安装脚本 v1.1 (Windows)
+# Codes 一键安装脚本 v2.0 (Windows)
 # 使用方式: irm https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/install.ps1 | iex
 # ========================================
 
@@ -9,10 +9,10 @@ $BRANCH = "main"
 $REPO_GITEE = "QtCodeCreators/OpenCodeChineseTranslation"
 $LIB_DIR = "$env:ProgramData\codes"
 $BIN_DIR = "$env:LOCALAPPDATA\Microsoft\WindowsApps"
-$EXPECTED_VERSION = "1.1.0"
+$EXPECTED_VERSION = "2.0.0"
 
 Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║     Codes 一键安装 v1.1                                     ║" -ForegroundColor Cyan
+Write-Host "║     Codes 一键安装 v2.0                                     ║" -ForegroundColor Cyan
 Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 

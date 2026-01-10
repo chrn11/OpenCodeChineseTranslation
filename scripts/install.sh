@@ -1,6 +1,6 @@
 #!/bin/bash
 # ========================================
-# Codes 一键安装脚本 v1.1
+# Codes 一键安装脚本 v2.0
 # 使用方式: curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/install.sh | bash
 # ========================================
 
@@ -11,7 +11,7 @@ BRANCH="main"
 REPO_GITEE="QtCodeCreators/OpenCodeChineseTranslation"
 LIB_DIR="/usr/local/lib/codes"
 BIN_DIR="/usr/local/bin"
-EXPECTED_VERSION="1.1.0"
+EXPECTED_VERSION="2.0.0"
 
 # 智能 sudo
 SUDO_CMD=""
@@ -26,7 +26,7 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║     Codes 一键安装 v1.1                                     ║"
+echo "║     Codes 一键安装 v2.0                                     ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 
