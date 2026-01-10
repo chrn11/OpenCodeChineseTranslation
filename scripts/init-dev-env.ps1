@@ -1,7 +1,7 @@
 # ========================================
-# 开发环境一键初始化脚本 v1.2
+# 开发环境一键初始化脚本 v1.3
 # 平台: Windows PowerShell
-# 特性: 安装汇总报告 + 国内镜像支持
+# 特性: 智能检测 + 多备用方案 + 全自动
 # ========================================
 
 param(
@@ -30,8 +30,8 @@ function Write-ColorOutput {
 function Write-Header {
     Clear-Host
     Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║     开发环境一键初始化脚本 v1.2                             ║" -ForegroundColor Cyan
-    Write-Host "║     安装汇总报告 + 国内镜像支持                             ║" -ForegroundColor Cyan
+    Write-Host "║     开发环境一键初始化脚本 v1.3                             ║" -ForegroundColor Cyan
+    Write-Host "║     智能检测 + 多备用方案 + 全自动                           ║" -ForegroundColor Cyan
     Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
 }
@@ -120,6 +120,18 @@ function Show-Summary {
     # 环境变量提示
     if ($Script:INSTALL_SUCCESS.Count -gt 0) {
         Write-Host "! 请重启终端使环境变量生效" -ForegroundColor Yellow
+        Write-Host ""
+    }
+
+    # 命令验证
+    if ($Script:INSTALL_SUCCESS.Count -gt 0) {
+        Write-Host "已安装命令验证:" -ForegroundColor Cyan
+        if (Test-Command "node") { Write-Host "  ✔ node $(Get-InstalledVersion 'node')" -ForegroundColor Green }
+        if (Test-Command "npm") { Write-Host "  ✔ npm $(Get-InstalledVersion 'npm')" -ForegroundColor Green }
+        if (Test-Command "bun") { Write-Host "  ✔ bun $(Get-InstalledVersion 'bun')" -ForegroundColor Green }
+        if (Test-Command "git") { Write-Host "  ✔ git $(Get-InstalledVersion 'git')" -ForegroundColor Green }
+        if (Test-Command "python") { Write-Host "  ✔ python $(Get-InstalledVersion 'python')" -ForegroundColor Green }
+        if (Test-Command "chelper") { Write-Host "  ✔ coding-helper" -ForegroundColor Green }
         Write-Host ""
     }
 }
@@ -317,6 +329,11 @@ function Install-CodingHelper {
     Write-ColorOutput Cyan "安装 @z_ai/coding-helper..."
 
     if (!(Test-Command "npm")) {
+        Write-ColorOutput Yellow "  npm 未找到，尝试先安装 Node.js..."
+        Install-NodeJS
+    }
+
+    if (!(Test-Command "npm")) {
         Write-ColorOutput Red "  ✗ 需要先安装 npm"
         Add-Failed "coding-helper" "npm 未安装"
         return
@@ -334,18 +351,20 @@ function Install-CodingHelper {
     if (Test-Command "chelper") {
         Write-ColorOutput Green "  ✓ coding-helper 安装成功"
         Add-Success "coding-helper"
-    } else {
-        # 备用：官方源
-        Write-ColorOutput Yellow "  尝试官方源..."
-        npm install -g @z_ai/coding-helper 2>$null
-        if (Test-Command "chelper") {
-            Write-ColorOutput Green "  ✓ coding-helper 安装成功"
-            Add-Success "coding-helper"
-        } else {
-            Write-ColorOutput Red "  ✗ coding-helper 安装失败"
-            Add-Failed "coding-helper" "包不存在或网络问题"
-        }
+        return
     }
+
+    # 备用：官方源
+    Write-ColorOutput Yellow "  尝试官方源..."
+    npm install -g @z_ai/coding-helper 2>$null
+    if (Test-Command "chelper") {
+        Write-ColorOutput Green "  ✓ coding-helper 安装成功"
+        Add-Success "coding-helper"
+        return
+    }
+
+    Write-ColorOutput Red "  ✗ coding-helper 安装失败"
+    Add-Failed "coding-helper" "包不存在或网络问题"
 }
 
 # ==================== 主安装流程 ====================

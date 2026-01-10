@@ -1,23 +1,18 @@
 #!/bin/bash
 # ========================================
-# 开发环境一键初始化脚本 v1.2
+# 开发环境一键初始化脚本 v1.3
 # 全平台支持: Linux / macOS
-# 特性: 国内镜像备用 + 安装汇总报告
+# 特性: 智能检测 + 多备用方案 + 全自动
 # ========================================
-
-# 不使用 set -e，让安装失败不中断
-# set -e
 
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 DARK_GRAY='\033[0;90m'
 WHITE='\033[1;37m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # 全局变量
 QUIET=false
@@ -30,9 +25,8 @@ declare -a INSTALL_FAILED=()
 declare -a INSTALL_SKIPPED=()
 
 # 国内镜像配置
-NVM_MIRROR_CN="https://gitee.com/mirrors/nvm/raw/master/install.sh"
-NVM_MIRROR_ORIGINAL="https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh"
 NPM_REGISTRY="https://registry.npmmirror.com"
+NODE_MIRROR="https://npmmirror.com/mirrors/node"
 GHPROXY_PREFIX="https://mirror.ghproxy.com/https://github.com"
 
 # 参数解析
@@ -48,8 +42,8 @@ done
 print_header() {
     clear
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║     开发环境一键初始化脚本 v1.2                             ║${NC}"
-    echo -e "${CYAN}║     国内镜像 + 安装汇总报告                                 ║${NC}"
+    echo -e "${CYAN}║     开发环境一键初始化脚本 v1.3                             ║${NC}"
+    echo -e "${CYAN}║     智能检测 + 多备用方案 + 全自动                           ║${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -64,21 +58,56 @@ print_color() {
     echo -e "${color}${message}${NC}"
 }
 
-command_exists() {
-    command -v "$1" &> /dev/null
+record_success() { INSTALL_SUCCESS+=("$1"); }
+record_failed() { INSTALL_FAILED+=("$1: $2"); }
+record_skipped() { INSTALL_SKIPPED+=("$1"); }
+
+# ==================== 智能检测函数 ====================
+has_cmd() {
+    command -v "$1" &> /dev/null && return 0
+
+    if [ -x "$HOME/.nvm/versions/node/*/bin/$1" ] 2>/dev/null; then
+        export PATH="$HOME/.nvm/versions/node/*/bin:$PATH"
+        return 0
+    fi
+
+    if [ "$1" = "bun" ] && [ -x "$HOME/.bun/bin/bun" ] 2>/dev/null; then
+        export PATH="$HOME/.bun/bin:$PATH"
+        return 0
+    fi
+
+    local common_paths=("/usr/local/bin" "/usr/bin" "$HOME/.local/bin")
+    for path in "${common_paths[@]}"; do
+        [ -x "$path/$1" ] && return 0
+    done
+
+    return 1
 }
 
-# 加载 nvm 环境（如果已安装）
+get_ver() {
+    if has_cmd "$1"; then
+        "$1" --version 2>&1 | head -n 1 | awk '{print $NF}' || echo "unknown"
+    else
+        echo "not installed"
+    fi
+}
+
 load_nvm() {
     if [ -d "$HOME/.nvm" ] && [ -s "$HOME/.nvm/nvm.sh" ]; then
         export NVM_DIR="$HOME/.nvm"
         \. "$NVM_DIR/nvm.sh"
+
+        if [ -d "$NVM_DIR/versions/node" ]; then
+            local latest_node=$(ls -1 "$NVM_DIR/versions/node" 2>/dev/null | sort -V | tail -1)
+            if [ -n "$latest_node" ] && [ -d "$NVM_DIR/versions/node/$latest_node/bin" ]; then
+                export PATH="$NVM_DIR/versions/node/$latest_node/bin:$PATH"
+            fi
+        fi
         return 0
     fi
     return 1
 }
 
-# 加载 bun 环境（如果已安装）
 load_bun() {
     if [ -d "$HOME/.bun/bin" ]; then
         export BUN_INSTALL="$HOME/.bun"
@@ -88,65 +117,25 @@ load_bun() {
     return 1
 }
 
-# 增强版命令检测（包括 nvm/bun 路径）
-command_exists_any() {
-    # 检查 PATH
-    command -v "$1" &> /dev/null && return 0
-
-    # 检查 nvm 安装的 node/npm
-    if [ "$1" = "node" ] || [ "$1" = "npm" ]; then
-        [ -x "$HOME/.nvm/versions/node/*/bin/$1" ] 2>/dev/null && return 0
-    fi
-
-    # 检查 bun 安装
-    if [ "$1" = "bun" ]; then
-        [ -x "$HOME/.bun/bin/bun" ] 2>/dev/null && return 0
-    fi
-
-    return 1
+get_pm() {
+    if has_cmd dnf; then echo "dnf"
+    elif has_cmd yum; then echo "yum"
+    elif has_cmd apt-get; then echo "apt"
+    elif has_cmd brew; then echo "brew"
+    elif has_cmd pacman; then echo "pacman"
+    else echo ""; fi
 }
 
-# 获取版本（增强版）
-get_version_any() {
-    # 先尝试直接调用
-    if command -v "$1" &> /dev/null; then
-        "$1" --version 2>&1 | head -n 1 || echo "unknown"
-        return
-    fi
-
-    # 检查 nvm 安装的版本
-    if [ -x "$HOME/.nvm/versions/node/*/bin/$1" ] 2>/dev/null; then
-        "$HOME/.nvm/versions/node/*/bin/$1" --version 2>&1 | head -n 1
-        return
-    fi
-
-    # 检查 bun
-    if [ "$1" = "bun" ] && [ -x "$HOME/.bun/bin/bun" ] 2>/dev/null; then
-        "$HOME/.bun/bin/bun" --version 2>&1 | head -n 1
-        return
-    fi
+get_arch() {
+    local arch=$(uname -m)
+    case $arch in
+        x86_64) echo "x64" ;;
+        aarch64|arm64) echo "arm64" ;;
+        *) echo "$arch" ;;
+    esac
 }
 
-get_version() {
-    if command_exists "$1"; then
-        "$1" --version 2>&1 | head -n 1 || echo "unknown"
-    fi
-}
-
-# 记录安装结果
-record_success() {
-    INSTALL_SUCCESS+=("$1")
-}
-
-record_failed() {
-    INSTALL_FAILED+=("$1: $2")
-}
-
-record_skipped() {
-    INSTALL_SKIPPED+=("$1")
-}
-
-# 打印安装汇总报告
+# ==================== 打印汇总报告 ====================
 print_summary() {
     echo ""
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
@@ -154,7 +143,6 @@ print_summary() {
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
-    # 成功列表
     if [ ${#INSTALL_SUCCESS[@]} -gt 0 ]; then
         print_color "$GREEN" "✓ 安装成功 (${#INSTALL_SUCCESS[@]}):"
         for item in "${INSTALL_SUCCESS[@]}"; do
@@ -163,7 +151,6 @@ print_summary() {
         echo ""
     fi
 
-    # 跳过列表
     if [ ${#INSTALL_SKIPPED[@]} -gt 0 ]; then
         print_color "$YELLOW" "⊙ 已安装，跳过 (${#INSTALL_SKIPPED[@]}):"
         for item in "${INSTALL_SKIPPED[@]}"; do
@@ -172,7 +159,6 @@ print_summary() {
         echo ""
     fi
 
-    # 失败列表
     if [ ${#INSTALL_FAILED[@]} -gt 0 ]; then
         print_color "$RED" "✗ 安装失败 (${#INSTALL_FAILED[@]}):"
         for item in "${INSTALL_FAILED[@]}"; do
@@ -181,270 +167,255 @@ print_summary() {
         echo ""
     fi
 
-    # 统计
     local total=$((${#INSTALL_SUCCESS[@]} + ${#INSTALL_FAILED[@]} + ${#INSTALL_SKIPPED[@]}))
-    local success_rate=0
-    if [ $total -gt 0 ]; then
-        success_rate=$((100 * ${#INSTALL_SUCCESS[@]} / total))
-    fi
+    local rate=0
+    [ $total -gt 0 ] && rate=$((100 * ${#INSTALL_SUCCESS[@]} / total))
 
     print_separator
-    echo -e "  总计: ${WHITE}$total${NC} | ${GREEN}成功: ${#INSTALL_SUCCESS[@]}${NC} | ${YELLOW}跳过: ${#INSTALL_SKIPPED[@]}${NC} | ${RED}失败: ${#INSTALL_FAILED[@]}${NC} | 成功率: ${success_rate}%"
+    echo -e "  总计: ${WHITE}$total${NC} | ${GREEN}成功: ${#INSTALL_SUCCESS[@]}${NC} | ${YELLOW}跳过: ${#INSTALL_SKIPPED[@]}${NC} | ${RED}失败: ${#INSTALL_FAILED[@]}${NC} | 成功率: ${rate}%"
     print_separator
     echo ""
 
-    # 环境变量提示
     if [ ${#INSTALL_SUCCESS[@]} -gt 0 ]; then
-        print_color "$YELLOW" "! 请运行以下命令使环境变量生效:"
-        echo -e "  ${WHITE}source ~/.bashrc${NC}"
-        echo ""
-    fi
-}
-
-# ==================== 系统检测 ====================
-show_system_status() {
-    print_color "$CYAN" "  系统环境检测"
-    print_separator
-
-    declare -A tools=(
-        ["Node.js"]="node"
-        ["npm"]="npm"
-        ["Bun"]="bun"
-        ["Git"]="git"
-        ["Docker"]="docker"
-        ["Python"]="python3"
-        ["coding-helper"]="chelper"
-    )
-
-    for name in "${!tools[@]}"; do
-        cmd="${tools[$name]}"
-        if command_exists "$cmd"; then
-            version=$(get_version "$cmd")
-            echo -e "  [$name] ${GREEN}✓${NC} $version"
-        else
-            echo -e "  [$name] ${RED}✗${NC} 未安装"
-        fi
-    done
-    print_separator
-    echo ""
-}
-
-# ==================== 包管理器检测 ====================
-detect_package_manager() {
-    if command_exists dnf; then
-        echo "dnf"
-    elif command_exists yum; then
-        echo "yum"
-    elif command_exists apt-get; then
-        echo "apt"
-    elif command_exists brew; then
-        echo "brew"
-    elif command_exists pacman; then
-        echo "pacman"
-    else
+        print_color "$CYAN" "已安装命令验证:"
+        has_cmd node && echo -e "  ${GREEN}✔${NC} node $(get_ver node)"
+        has_cmd npm && echo -e "  ${GREEN}✔${NC} npm $(get_ver npm)"
+        has_cmd bun && echo -e "  ${GREEN}✔${NC} bun $(get_ver bun)"
+        has_cmd git && echo -e "  ${GREEN}✔${NC} git $(get_ver git)"
+        has_cmd python3 && echo -e "  ${GREEN}✔${NC} python3 $(get_ver python3)"
+        has_cmd chelper && echo -e "  ${GREEN}✔${NC} coding-helper"
         echo ""
     fi
 }
 
 # ==================== 组件安装 ====================
 install_nodejs() {
-    print_color "$CYAN" "[1/5] 安装 Node.js..."
+    print_color "$CYAN" "[1/4] 安装 Node.js..."
 
-    # 先加载 nvm（如果已安装）
     load_nvm
 
-    # 使用增强检测
-    if command_exists_any node || command_exists node; then
-        local version=$(get_version_any node)
+    if has_cmd node; then
+        local version=$(get_ver node)
         print_color "$YELLOW" "  ⊙ Node.js 已安装: $version"
         record_skipped "Node.js ($version)"
+        has_cmd npm && npm config set registry "$NPM_REGISTRY" 2>/dev/null
+        return 0
+    fi
 
-        # 配置 npm 国内镜像
-        if command_exists npm || command_exists_any npm; then
+    local pm=$(get_pm)
+    local arch=$(get_arch)
+    local installed=false
+
+    # 方法1: 使用 nvm（Gitee 镜像）
+    if [ ! -d "$HOME/.nvm" ]; then
+        print_color "$DARK_GRAY" "  方法1: 使用 nvm 安装..."
+        if curl -o- https://gitee.com/mirrors/nvm/raw/master/install.sh 2>/dev/null | bash 2>/dev/null; then
+            load_nvm
+            if has_cmd nvm; then
+                nvm install --lts 2>/dev/null && nvm alias default lts/* 2>/dev/null
+                load_nvm
+                has_cmd node && installed=true
+            fi
+        fi
+    else
+        print_color "$YELLOW" "  nvm 目录已存在，尝试使用..."
+        load_nvm
+        if has_cmd nvm; then
+            nvm install --lts 2>/dev/null && nvm alias default lts/* 2>/dev/null
+            load_nvm
+            has_cmd node && installed=true
+        fi
+    fi
+
+    # 方法2: 直接下载 Node.js 二进制
+    if ! $installed; then
+        print_color "$YELLOW" "  方法2: 直接下载 Node.js 二进制..."
+        local node_version="v22.12.0"
+        local node_url="https://npmmirror.com/mirrors/node/${node_version}/node-${node_version}-linux-${arch}.tar.xz"
+
+        cd /tmp
+        if curl -L "$node_url" -o node.tar.xz 2>/dev/null; then
+            tar -xf node.tar.xz 2>/dev/null
+            if [ -d "node-${node_version}-linux-${arch}" ]; then
+                sudo rm -rf /usr/local/node 2>/dev/null
+                sudo mv "node-${node_version}-linux-${arch}" /usr/local/node
+                sudo ln -sf /usr/local/node/bin/* /usr/local/bin/ 2>/dev/null
+                export PATH="/usr/local/node/bin:$PATH"
+                has_cmd node && installed=true
+            fi
+            rm -rf node.tar.xz "node-${node_version}-linux-${arch}" 2>/dev/null
+        fi
+        cd - > /dev/null
+    fi
+
+    # 方法3: 系统包管理器
+    if ! $installed; then
+        print_color "$YELLOW" "  方法3: 使用系统包管理器..."
+        case $pm in
+            dnf|yum)
+                curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo bash - 2>/dev/null
+                sudo $pm install -y nodejs npm 2>/dev/null && installed=true
+                ;;
+            apt)
+                curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - 2>/dev/null
+                sudo apt-get install -y nodejs 2>/dev/null && installed=true
+                ;;
+        esac
+    fi
+
+    load_nvm
+    if has_cmd node; then
+        local version=$(get_ver node)
+        print_color "$GREEN" "  ✓ Node.js 安装成功: $version"
+        record_success "Node.js ($version)"
+
+        if has_cmd npm; then
             npm config set registry "$NPM_REGISTRY" 2>/dev/null
+            print_color "$DARK_GRAY" "  ✓ npm 已配置国内镜像"
+        fi
+
+        if ! grep -q 'NVM_DIR' ~/.bashrc 2>/dev/null; then
+            echo "" >> ~/.bashrc
+            echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc
+            echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc
         fi
         return 0
     fi
 
-    print_color "$DARK_GRAY" "  使用 nvm 安装 Node.js..."
-
-    # 检查 nvm 目录是否已存在
-    if [ -d "$HOME/.nvm" ]; then
-        print_color "$YELLOW" "  nvm 目录已存在，直接加载..."
-        load_nvm
-    fi
-
-    # 方法1: 尝试 Gitee 镜像
-    if ! command_exists nvm && [ ! -d "$HOME/.nvm" ]; then
-        print_color "$DARK_GRAY" "  方法1: 使用 Gitee 镜像安装 nvm..."
-        if curl -o- "$NVM_MIRROR_CN" 2>/dev/null | bash 2>/dev/null; then
-            load_nvm
-        fi
-    fi
-
-    # 方法2: 尝试官方源（带代理）
-    if ! command_exists nvm && [ ! -d "$HOME/.nvm" ]; then
-        print_color "$YELLOW" "  方法2: 使用官方源（可能较慢）..."
-        if curl -o- "$NVM_MIRROR_ORIGINAL" 2>/dev/null | bash 2>/dev/null; then
-            load_nvm
-        fi
-    fi
-
-    # 安装 Node.js
-    if command_exists nvm || [ -d "$HOME/.nvm" ]; then
-        load_nvm
-        nvm install --lts 2>/dev/null
-        nvm alias default lts/* 2>/dev/null
-        load_nvm  # 重新加载以获取新安装的 node
-
-        # 再次检查（使用增强检测）
-        if command_exists_any node || command_exists node; then
-            local version=$(get_version_any node)
-            print_color "$GREEN" "  ✓ Node.js 安装成功: $version"
-            record_success "Node.js ($version)"
-
-            # 配置 npm 国内镜像
-            if command_exists npm || command_exists_any npm; then
-                npm config set registry "$NPM_REGISTRY" 2>/dev/null
-                print_color "$DARK_GRAY" "  ✓ npm 已配置国内镜像"
-            fi
-
-            # 添加到 bashrc
-            if ! grep -q 'NVM_DIR' ~/.bashrc 2>/dev/null; then
-                echo "" >> ~/.bashrc
-                echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc
-                echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc
-            fi
-            return 0
-        fi
-    fi
-
     print_color "$RED" "  ✗ Node.js 安装失败"
-    record_failed "Node.js" "nvm 安装失败"
+    record_failed "Node.js" "所有安装方法均失败"
     return 1
 }
 
 install_bun() {
-    print_color "$CYAN" "[2/5] 安装 Bun..."
+    print_color "$CYAN" "[2/4] 安装 Bun..."
 
-    if command_exists bun; then
-        local version=$(get_version bun)
+    load_bun
+    if has_cmd bun; then
+        local version=$(get_ver bun)
         print_color "$YELLOW" "  ⊙ Bun 已安装: $version"
         record_skipped "Bun ($version)"
         return 0
     fi
 
-    # 方法1: 官方安装脚本（通过代理）
-    print_color "$DARK_GRAY" "  方法1: 官方安装脚本（通过 ghproxy）..."
+    local installed=false
+
+    print_color "$DARK_GRAY" "  方法1: 官方安装脚本..."
     if curl -fsSL "${GHPROXY_PREFIX}/oven-sh/bun/raw/main/install.sh" 2>/dev/null | bash 2>/dev/null; then
-        if [ -f "$HOME/.bun/bin/bun" ]; then
-            export BUN_INSTALL="$HOME/.bun"
-            export PATH="$BUN_INSTALL/bin:$PATH"
-            if ! grep -q 'BUN_INSTALL' ~/.bashrc 2>/dev/null; then
-                echo "" >> ~/.bashrc
-                echo 'export BUN_INSTALL="$HOME/.bun"' >> ~/.bashrc
-                echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> ~/.bashrc
-            fi
-            print_color "$GREEN" "  ✓ Bun 安装成功"
-            record_success "Bun"
-            return 0
+        load_bun
+        has_cmd bun && installed=true
+    fi
+
+    if ! $installed && has_cmd npm; then
+        print_color "$YELLOW" "  方法2: 使用 npm 安装..."
+        if npm install -g bun 2>/dev/null; then
+            load_bun
+            has_cmd bun && installed=true
         fi
     fi
 
-    # 方法2: 使用 npm 安装（备用）
-    if command_exists npm; then
-        print_color "$YELLOW" "  方法2: 使用 npm 安装..."
-        if npm install -g bun 2>/dev/null; then
-            print_color "$GREEN" "  ✓ Bun 安装成功 (通过 npm)"
-            record_success "Bun (via npm)"
-            return 0
+    if ! $installed; then
+        print_color "$YELLOW" "  方法3: 直接下载二进制..."
+        local arch=$(get_arch)
+        cd /tmp
+        if curl -L "${GHPROXY_PREFIX}/oven-sh/bun/releases/latest/download/bun-${arch}.zip" -o bun.zip 2>/dev/null; then
+            unzip -o bun.zip 2>/dev/null
+            chmod +x bun 2>/dev/null
+            mkdir -p ~/.bun/bin 2>/dev/null
+            mv bun ~/.bun/bin/
+            load_bun
+            has_cmd bun && installed=true
         fi
+        rm -rf bun.zip 2>/dev/null
+        cd - > /dev/null
+    fi
+
+    if has_cmd bun; then
+        local version=$(get_ver bun)
+        print_color "$GREEN" "  ✓ Bun 安装成功: $version"
+        record_success "Bun ($version)"
+        return 0
     fi
 
     print_color "$YELLOW" "  ⊙ Bun 安装跳过（网络问题）"
-    record_failed "Bun" "网络连接失败，请手动安装"
+    record_failed "Bun" "网络连接失败"
     return 1
 }
 
 install_git() {
-    print_color "$CYAN" "[3/5] 安装 Git..."
+    print_color "$CYAN" "[3/4] 安装 Git..."
 
-    if command_exists git; then
-        local version=$(get_version git)
+    if has_cmd git; then
+        local version=$(get_ver git)
         print_color "$YELLOW" "  ⊙ Git 已安装: $version"
         record_skipped "Git ($version)"
         return 0
     fi
 
-    local pm=$(detect_package_manager)
+    local pm=$(get_pm)
     case $pm in
-        dnf|yum)
-            sudo $pm install -y git 2>/dev/null
-            ;;
-        apt)
-            sudo apt-get install -y git 2>/dev/null
-            ;;
-        pacman)
-            sudo pacman -S --noconfirm git 2>/dev/null
-            ;;
+        dnf|yum) sudo $pm install -y git 2>/dev/null ;;
+        apt) sudo apt-get install -y git 2>/dev/null ;;
+        pacman) sudo pacman -S --noconfirm git 2>/dev/null ;;
     esac
 
-    if command_exists git; then
+    if has_cmd git; then
         print_color "$GREEN" "  ✓ Git 安装成功"
         record_success "Git"
         return 0
     fi
 
     print_color "$RED" "  ✗ Git 安装失败"
-    record_failed "Git" "请使用系统包管理器手动安装"
+    record_failed "Git" "请手动安装"
     return 1
 }
 
 install_python() {
-    print_color "$CYAN" "[4/5] 安装 Python..."
+    print_color "$CYAN" "[4/4] 安装 Python..."
 
-    if command_exists python3; then
-        local version=$(get_version python3)
+    if has_cmd python3; then
+        local version=$(get_ver python3)
         print_color "$YELLOW" "  ⊙ Python 已安装: $version"
         record_skipped "Python ($version)"
         return 0
     fi
 
-    local pm=$(detect_package_manager)
+    local pm=$(get_pm)
     case $pm in
-        dnf|yum)
-            sudo $pm install -y python3 python3-pip 2>/dev/null
-            ;;
-        apt)
-            sudo apt-get install -y python3 python3-pip 2>/dev/null
-            ;;
+        dnf|yum) sudo $pm install -y python3 python3-pip 2>/dev/null ;;
+        apt) sudo apt-get install -y python3 python3-pip 2>/dev/null ;;
     esac
 
-    if command_exists python3; then
+    if has_cmd python3; then
         print_color "$GREEN" "  ✓ Python 安装成功"
         record_success "Python"
         return 0
     fi
 
     print_color "$RED" "  ✗ Python 安装失败"
-    record_failed "Python" "请使用系统包管理器手动安装"
+    record_failed "Python" "请手动安装"
     return 1
 }
 
 install_coding_helper() {
-    print_color "$CYAN" "[5/5] 安装 @z_ai/coding-helper..."
+    print_color "$CYAN" "安装 @z_ai/coding-helper..."
 
-    # 确保 nvm 已加载
     load_nvm
+    load_bun
 
-    # 使用增强检测 npm
-    if ! command_exists npm && ! command_exists_any npm; then
+    if ! has_cmd npm; then
+        print_color "$YELLOW" "  npm 未找到，尝试先安装 Node.js..."
+        install_nodejs
+        load_nvm
+    fi
+
+    if ! has_cmd npm; then
         print_color "$RED" "  ✗ 需要先安装 npm"
         record_failed "coding-helper" "npm 未安装"
         return 1
     fi
 
-    if command_exists chelper; then
+    if has_cmd chelper; then
         print_color "$YELLOW" "  ⊙ coding-helper 已安装"
         record_skipped "coding-helper"
         return 0
@@ -457,7 +428,6 @@ install_coding_helper() {
         return 0
     fi
 
-    # 备用：官方源
     if npm install -g @z_ai/coding-helper 2>/dev/null; then
         print_color "$GREEN" "  ✓ coding-helper 安装成功"
         record_success "coding-helper"
@@ -465,7 +435,7 @@ install_coding_helper() {
     fi
 
     print_color "$RED" "  ✗ coding-helper 安装失败"
-    record_failed "coding-helper" "网络问题或包不存在"
+    record_failed "coding-helper" "网络问题"
     return 1
 }
 
@@ -476,10 +446,9 @@ install_all() {
     print_separator
     echo ""
 
-    # 安装基础工具
-    print_color "$CYAN" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    print_color "$CYAN" "  第一阶段: 基础工具"
-    print_color "$CYAN" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo -e "${CYAN}  第一阶段: 基础工具"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
 
     install_nodejs
@@ -491,18 +460,16 @@ install_all() {
     install_python
     echo ""
 
-    # 安装 AI 工具
     if [ "$SKIP_AI" = false ]; then
-        print_color "$CYAN" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        print_color "$CYAN" "  第二阶段: AI 工具"
-        print_color "$CYAN" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo -e "${CYAN}  第二阶段: AI 工具"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo ""
 
         install_coding_helper
         echo ""
     fi
 
-    # 显示汇总报告
     print_summary
 }
 
@@ -536,15 +503,13 @@ install_ai_tools() {
     print_summary
 }
 
-# ==================== 主菜单 ====================
 show_menu() {
     print_header
-    show_system_status
 
     echo -e "${CYAN}   ┌─── 安装模式 ─────────────────────────────────────────┐${NC}"
     echo -e "${CYAN}   │${NC}"
     echo -e "${GREEN}   │  [1]  一键安装全部 (推荐)${NC}"
-    echo -e "${YELLOW}   │  [2]  仅安装基础工具 (Node.js, Bun, Git, Python)${NC}"
+    echo -e "${YELLOW}   │  [2]  仅安装基础工具${NC}"
     echo -e "${MAGENTA}   │  [3]  仅安装 AI 工具${NC}"
     echo -e "${CYAN}   │  [4]  检查更新${NC}"
     echo -e "${CYAN}   │${NC}"
@@ -560,34 +525,22 @@ check_updates() {
     print_separator
     echo ""
 
-    print_color "$CYAN" "已安装组件版本:"
+    print_color "$CYAN" "已安装组件:"
+    echo ""
+    has_cmd node && echo "  Node.js: $(get_ver node)"
+    has_cmd npm && echo "  npm: $(get_ver npm)"
+    has_cmd bun && echo "  Bun: $(get_ver bun)"
+    has_cmd git && echo "  Git: $(get_ver git)"
+    has_cmd python3 && echo "  Python: $(get_ver python3)"
     echo ""
 
-    declare -A tools=(
-        ["Node.js"]="node"
-        ["Bun"]="bun"
-        ["npm"]="npm"
-        ["Git"]="git"
-        ["Python"]="python3"
-    )
-
-    for name in "${!tools[@]}"; do
-        cmd="${tools[$name]}"
-        if command_exists "$cmd"; then
-            version=$(get_version "$cmd")
-            echo -e "  [$name] $version"
-        fi
-    done
-
-    echo ""
     print_color "$YELLOW" "更新命令:"
     echo -e "  ${DARK_GRAY}nvm install --lts${NC}"
-    echo -e "  ${DARK_GRAY}bun upgrade${NC}"
+    echo -e "  ${DARK_GRAY}npm update -g @z_ai/coding-helper${NC}"
     echo ""
 }
 
 # ==================== 主循环 ====================
-# 检测是否在管道模式（非交互）
 if [ ! -t 0 ]; then
     print_color "$YELLOW" "检测到管道模式（非交互），自动执行一键安装..."
     install_all
