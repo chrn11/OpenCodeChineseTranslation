@@ -4,8 +4,10 @@
   "replacements": {
     " tokens</text>": " 令牌</text>",
     "% used</text>": "% 已用</text>",
-    ", ${errorMcpCount()} error": ", ${errorMcpCount()} 错误",
-    ", ${errorMcpCount()} errors": ", ${errorMcpCount()} 错误",
+    "} active\n": "} 个活动\n",
+    "} active": "} 个活动",
+    " error${": " 错误${",
+    " errors${": " 错误${",
     ">Connected</Match>": ">已连接</Match>",
     ">Disabled</Match>": ">已禁用</Match>",
     ">Needs auth</Match>": ">需要认证</Match>",
@@ -15,6 +17,7 @@
     "Getting started": "开始使用",
     "Open Code": "OpenCode",
     "Get started": "开始",
-    "LSP": "LSP"
+    "LSP will activate when reading files": "LSP 将在读取文件时激活",
+    "LSP disabled in settings": "LSP 已在设置中禁用"
   }
 }

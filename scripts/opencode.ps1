@@ -1,5 +1,5 @@
 # ========================================
-# OpenCode 中文汉化版 - 管理工具 v5.2
+# OpenCode 中文汉化版 - 管理工具 v5.3
 # ========================================
 
 # 配置路径 (使用脚本所在目录，自动适配)
@@ -658,6 +658,164 @@ function Restore-GitStash {
 
 <#
 .SYNOPSIS
+    检测 Git 工作区是否存在合并冲突
+.OUTPUTS
+    hashtable 包含 HasConflict(bool) 和 ConflictFiles(array)
+#>
+function Test-GitConflict {
+    $result = @{
+        HasConflict = $false
+        ConflictFiles = @()
+    }
+
+    if (!(Test-Path $SRC_DIR)) {
+        return $result
+    }
+
+    Push-Location $SRC_DIR
+    try {
+        # 检查是否有冲突标记
+        $conflictFiles = git diff --name-only --diff-filter=U 2>&1
+        if ($LASTEXITCODE -eq 0 -and $conflictFiles) {
+            $result.HasConflict = $true
+            $result.ConflictFiles = @($conflictFiles -split "`n" | Where-Object { $_ -ne "" })
+        }
+
+        # 额外检查：搜索包含冲突标记的文件
+        $markerFiles = git grep -l "<<<<<<< Updated upstream" 2>&1
+        if ($LASTEXITCODE -eq 0 -and $markerFiles) {
+            $result.HasConflict = $true
+            $additionalFiles = @($markerFiles -split "`n" | Where-Object { $_ -ne "" })
+            foreach ($file in $additionalFiles) {
+                if ($file -notin $result.ConflictFiles) {
+                    $result.ConflictFiles += $file
+                }
+            }
+        }
+    } catch {
+        # 忽略错误
+    } finally {
+        Pop-Location
+    }
+
+    return $result
+}
+
+<#
+.SYNOPSIS
+    自动解决 Git 合并冲突
+.DESCRIPTION
+    检测冲突并自动解决，优先使用上游版本（避免汉化补丁冲突）
+.OUTPUTS
+    bool 成功返回 true，失败返回 false
+#>
+function Resolve-GitConflict {
+    $conflictInfo = Test-GitConflict
+
+    if (!$conflictInfo.HasConflict) {
+        return $true
+    }
+
+    Write-Host "   → 检测到 $($conflictInfo.ConflictFiles.Count) 个冲突文件" -ForegroundColor Yellow
+    foreach ($file in $conflictInfo.ConflictFiles) {
+        Write-Host "      - $file" -ForegroundColor DarkGray
+    }
+
+    Write-Host "   → 自动解决冲突（使用上游版本）..." -ForegroundColor Yellow
+
+    Push-Location $SRC_DIR
+    try {
+        # 方法1: 使用 checkout --theirs 优先使用上游版本
+        foreach ($file in $conflictInfo.ConflictFiles) {
+            $null = git checkout --theirs "$file" 2>&1
+            $null = git add "$file" 2>&1
+        }
+
+        # 检查是否还有冲突
+        $remainingConflicts = git diff --name-only --diff-filter=U 2>&1
+        if ($LASTEXITCODE -eq 0 -and $remainingConflicts) {
+            # 方法2: 还有冲突，尝试使用 reset --hard 丢弃本地修改
+            Write-Host "   → 部分冲突未解决，强制重置..." -ForegroundColor Yellow
+            $currentBranch = git rev-parse --abbrev-ref HEAD 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $null = git reset --hard "HEAD" 2>&1
+                $null = git clean -fd 2>&1
+            }
+        }
+
+        # 最终检查
+        $finalCheck = git diff --name-only --diff-filter=U 2>&1
+        if ($LASTEXITCODE -eq 0 -and $finalCheck) {
+            Pop-Location
+            Write-Host "   → 冲突解决失败，需要手动处理" -ForegroundColor Red
+            return $false
+        }
+
+        Pop-Location
+        Write-Host "   → 冲突已解决" -ForegroundColor Green
+        return $true
+    } catch {
+        Pop-Location
+        Write-Host "   → 冲突解决异常: $_" -ForegroundColor Red
+        return $false
+    }
+}
+
+<#
+.SYNOPSIS
+    恢复原始文件并清理冲突（用于拉取代码前）
+.OUTPUTS
+    bool 成功返回 true，失败返回 false
+#>
+function Reset-SourceBeforePull {
+    if (!(Test-Path $SRC_DIR)) {
+        return $false
+    }
+
+    Push-Location $SRC_DIR
+    try {
+        # 先检测是否有冲突
+        $hasConflict = git diff --name-only --diff-filter=U 2>&1
+        if ($LASTEXITCODE -eq 0 -and $hasConflict) {
+            Write-Host "   → 发现残留冲突，先解决..." -ForegroundColor Yellow
+            $null = git reset --hard "HEAD" 2>&1
+            $null = git clean -fd 2>&1
+        }
+
+        # 检查是否有 assume-unchanged 文件需要临时恢复
+        # 这样可以确保拉取时使用干净的源码状态
+        $markedFiles = @()
+        $config = Get-I18NConfig
+        if ($config) {
+            foreach ($patchKey in Get-ConfigKeys -Config $config.patches) {
+                $patch = Get-PatchConfig -Config $config -PatchKey $patchKey
+                if ($patch.file) {
+                    $markedFiles += $patch.file
+                }
+            }
+        }
+
+        if ($markedFiles.Count -gt 0) {
+            Write-Host "   → 暂时解除汉化文件标记..." -ForegroundColor DarkGray
+            foreach ($file in $markedFiles) {
+                git update-index --no-assume-unchanged $file 2>&1 | Out-Null
+            }
+        }
+
+        # 重置汉化文件到原始状态
+        Write-Host "   → 重置汉化文件到原始状态..." -ForegroundColor DarkGray
+        $null = git checkout -- packages/opencode/src/cli/cmd/tui/ 2>&1
+
+        Pop-Location
+        return $true
+    } catch {
+        Pop-Location
+        return $false
+    }
+}
+
+<#
+.SYNOPSIS
     批量解除文件 assume-unchanged 标记
 .PARAMETER Files
     文件列表数组
@@ -1055,20 +1213,64 @@ function Test-LanguagePackCompatibility {
         Write-Host "   └─────────────────────────────────────────────────────────────┘" -ForegroundColor DarkGray
         Write-Host ""
 
-        # 版本差异提示
+        # 版本差异提示 - 改进逻辑
         $commitDiff = 0
+        $isAhead = $false
+        $isBehind = $false
+
         try {
             Push-Location $SRC_DIR
-            $diffCount = git rev-list --count "$supportedShort..$currentShort" 2>&1
-            Pop-Location
-            if ($diffCount -match "^\d+$") {
-                $commitDiff = [int]$diffCount
+
+            # 检查祖先后关系
+            $isAncestor = git merge-base --is-ancestor $supportedShort $currentShort 2>&1
+            $currentIsAhead = ($LASTEXITCODE -eq 0)
+
+            $isAncestor2 = git merge-base --is-ancestor $currentShort $supportedShort 2>&1
+            $currentIsBehind = ($LASTEXITCODE -eq 0)
+
+            if ($currentIsAhead) {
+                # 当前代码领先语言包
+                $diffCount = git rev-list --count "$supportedShort..$currentShort" 2>&1
+                if ($diffCount -match "^\d+$") {
+                    $commitDiff = [int]$diffCount
+                    $isAhead = $true
+                }
+            } elseif ($currentIsBehind) {
+                # 当前代码落后语言包
+                $diffCount = git rev-list --count "$currentShort..$supportedShort" 2>&1
+                if ($diffCount -match "^\d+$") {
+                    $commitDiff = [int]$diffCount
+                    $isBehind = $true
+                }
+            } else {
+                # 已经分叉，找到共同祖先
+                $mergeBase = git merge-base $supportedShort $currentShort 2>&1
+                if ($LASTEXITCODE -eq 0 -and $mergeBase) {
+                    # 计算从分叉点到两边的提交数
+                    $aheadCount = git rev-list --count "$mergeBase..$currentShort" 2>&1
+                    $behindCount = git rev-list --count "$mergeBase..$supportedShort" 2>&1
+                    if ($aheadCount -match "^\d+" -and $behindCount -match "^\d+") {
+                        $commitDiff = [int]$aheadCount
+                        $isAhead = $true
+                        $behindDiff = [int]$behindCount
+                    }
+                }
             }
+
+            Pop-Location
         } catch {}
 
-        if ($commitDiff -gt 0) {
+        if ($isAhead) {
             Write-Host "   ℹ  当前代码领先语言包 " -NoNewline
             Write-Host "$commitDiff 个提交" -ForegroundColor Yellow
+            Write-Host ""
+        } elseif ($isBehind) {
+            Write-Host "   ℹ  当前代码落后语言包 " -NoNewline
+            Write-Host "$commitDiff 个提交" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "   💡 建议: 运行 " -NoNewline
+            Write-Host "[7] 高级菜单 → [1] 拉取最新代码" -ForegroundColor Cyan -NoNewline
+            Write-Host " 更新源码" -ForegroundColor DarkGray
             Write-Host ""
         }
 
@@ -1171,6 +1373,104 @@ function Update-SupportedCommit {
         return $true
     } catch {
         Write-ColorOutput Yellow "[警告] 更新配置失败: $_"
+        return $false
+    }
+}
+
+<#
+.SYNOPSIS
+    自动提交语言包更新到 Git
+.DESCRIPTION
+    当汉化验证通过并更新版本后，自动提交更改
+.PARAMETER Force
+    强制提交，即使没有检测到变更
+.OUTPUTS
+    bool 成功返回 true，失败返回 false
+#>
+function Commit-LanguagePackUpdate {
+    param([switch]$Force)
+
+    # 检查是否在 Git 仓库中
+    $rootDir = $PSScriptRoot
+    Push-Location $rootDir
+    $isInGit = git rev-parse --is-inside-work-tree 2>&1
+    Pop-Location
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorOutput Yellow "[跳过] 不在 Git 仓库中，跳过自动提交"
+        return $false
+    }
+
+    Push-Location $rootDir
+
+    # 检查是否有变更
+    $status = git status --porcelain opencode-i18n/ 2>&1
+    if (!$Force -and !$status) {
+        Pop-Location
+        return $true  # 没有变更，不算失败
+    }
+
+    try {
+        Write-Host ""
+        Write-Host "   ┌─────────────────────────────────────────────────────────────┐" -ForegroundColor DarkGray
+        Write-Host "   │" -ForegroundColor DarkGray -NoNewline
+        Write-Host " 自动提交语言包更新" -ForegroundColor White -NoNewline
+        Write-Host "                                       │" -ForegroundColor DarkGray
+        Write-Host "   └─────────────────────────────────────────────────────────────┘" -ForegroundColor DarkGray
+        Write-Host ""
+
+        # 获取版本信息
+        $config = Get-Content $I18N_CONFIG -Raw -Encoding UTF8 | ConvertFrom-Json
+        $newCommit = $config.supportedCommit
+        $newShort = if ($newCommit) { $newCommit.Substring(0, [Math]::Min(8, $newCommit.Length)) } else { "unknown" }
+        $version = $config.version
+
+        # 添加变更文件
+        Write-Host "   → 添加语言包文件..." -ForegroundColor DarkGray
+        $null = git add opencode-i18n/ 2>&1
+
+        # 检查是否有文件被暂存
+        $staged = git diff --cached --name-only 2>&1
+        if (!$staged) {
+            Write-Host "   → 无新变更需要提交" -ForegroundColor Yellow
+            Pop-Location
+            return $true
+        }
+
+        # 生成提交消息
+        $commitMsg = "chore(i18n): 更新语言包版本 v$version→$newShort"
+
+        # 执行提交
+        Write-Host "   → 提交更改..." -ForegroundColor DarkGray
+        $null = git commit -m $commitMsg 2>&1
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-ColorOutput Green "   ✓ 已提交: $commitMsg"
+
+            # 询问是否推送
+            Write-Host ""
+            $push = Read-Host "   是否推送到远程？(Y/n)"
+            if ($push -ne "n" -and $push -ne "N") {
+                Write-Host "   → 推送中..." -ForegroundColor DarkGray
+                $pushOutput = git push 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-ColorOutput Green "   ✓ 推送成功"
+                } else {
+                    Write-ColorOutput Yellow "   ⚠ 推送失败（可能需要手动处理）"
+                    Write-Host "   $pushOutput" -ForegroundColor DarkGray
+                }
+            }
+
+            Pop-Location
+            return $true
+        } else {
+            Write-ColorOutput Yellow "   ⚠ 提交失败，请手动处理"
+            Pop-Location
+            return $false
+        }
+    } catch {
+        Pop-Location
+        Write-ColorOutput Yellow "   ⚠ 自动提交异常: $_"
         return $false
     }
 }
@@ -1461,15 +1761,36 @@ function Show-VersionInfo {
                     $stashIndex = ($stashName.ToString() -split ":")[0].Trim()
                     $popOutput = git stash pop "$stashIndex" 2>&1
                     if ($LASTEXITCODE -ne 0) {
-                        # pop 失败（有冲突），放弃 stash 并重新应用汉化
-                        Write-Host "   → 检测到冲突，重新应用汉化..." -ForegroundColor Yellow
+                        # pop 失败（有冲突），自动解决冲突
+                        Write-Host "   → 检测到冲突，自动解决..." -ForegroundColor Yellow
                         git stash drop "$stashIndex" 2>&1 | Out-Null
-                        Write-Host "   → 请运行 [2] 应用汉化 重新翻译" -ForegroundColor Cyan
+
+                        # 调用冲突解决函数
+                        $conflictResolved = Resolve-GitConflict
+                        if ($conflictResolved) {
+                            Write-Host "   → 冲突已自动解决，需要重新应用汉化" -ForegroundColor Green
+                            Write-Host "   → 请运行 [2] 应用汉化 重新翻译" -ForegroundColor Cyan
+                        } else {
+                            Write-Host "   → 自动解决冲突失败，请手动处理" -ForegroundColor Red
+                        }
+                    } else {
+                        # pop 成功，检查是否有残留冲突
+                        $conflictInfo = Test-GitConflict
+                        if ($conflictInfo.HasConflict) {
+                            Write-Host "   → 发现残留冲突，自动解决..." -ForegroundColor Yellow
+                            $null = Resolve-GitConflict
+                        }
                     }
                 }
             } elseif ($hasLocalChanges -and !$stashSuccess) {
-                # stash 失败但原修改还在，提示用户
-                Write-Host "   → 汉化保留在源码目录中" -ForegroundColor Yellow
+                # stash 失败但原修改还在，检查是否有冲突
+                $conflictInfo = Test-GitConflict
+                if ($conflictInfo.HasConflict) {
+                    Write-Host "   → 检测到残留冲突，自动解决..." -ForegroundColor Yellow
+                    $null = Resolve-GitConflict
+                } else {
+                    Write-Host "   → 汉化保留在源码目录中" -ForegroundColor Yellow
+                }
             }
 
             if (!$success -and $detectedProxy) {
@@ -2674,6 +2995,9 @@ function Test-I18NPatches {
         Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         Write-Host ""
         Update-SupportedCommit
+
+        # 自动提交到 Git
+        Commit-LanguagePackUpdate
         Write-Host ""
     } else {
         Write-StepMessage "汉化验证发现问题" "WARNING"
@@ -2822,6 +3146,23 @@ function Apply-Patches {
     Write-StepMessage "开始应用汉化补丁..." "INFO"
     Write-Host "   → 配置版本: $($config.version), 模块数: $totalModules" -ForegroundColor DarkGray
     Write-Host ""
+
+    # 检查并自动解决冲突
+    $conflictInfo = Test-GitConflict
+    if ($conflictInfo.HasConflict) {
+        Write-StepMessage "检测到冲突，自动解决中..." "WARNING"
+        Write-Host "   → 发现 $($conflictInfo.ConflictFiles.Count) 个冲突文件" -ForegroundColor Yellow
+        $resolved = Resolve-GitConflict
+        if ($resolved) {
+            Write-StepMessage "冲突已解决，继续应用汉化" "SUCCESS"
+            Write-Host ""
+        } else {
+            Write-StepMessage "冲突解决失败，请手动处理" "ERROR"
+            Write-Host "   → 运行 git status 查看冲突文件" -ForegroundColor Cyan
+            Read-Host "按回车键继续"
+            return
+        }
+    }
 
     # 应用命令面板汉化
     Write-StepMessage "应用命令面板汉化..." "INFO"
@@ -3277,15 +3618,36 @@ function Invoke-OneClickFull {
                     $stashIndex = ($stashName.ToString() -split ":")[0].Trim()
                     $popOutput = git stash pop "$stashIndex" 2>&1
                     if ($LASTEXITCODE -ne 0) {
-                        # pop 失败（有冲突），放弃 stash 并重新应用汉化
-                        Write-Host "   → 检测到冲突，重新应用汉化..." -ForegroundColor Yellow
+                        # pop 失败（有冲突），自动解决冲突
+                        Write-Host "   → 检测到冲突，自动解决..." -ForegroundColor Yellow
                         git stash drop "$stashIndex" 2>&1 | Out-Null
-                        Write-Host "   → 请运行 [2] 应用汉化 重新翻译" -ForegroundColor Cyan
+
+                        # 调用冲突解决函数
+                        $conflictResolved = Resolve-GitConflict
+                        if ($conflictResolved) {
+                            Write-Host "   → 冲突已自动解决，需要重新应用汉化" -ForegroundColor Green
+                            Write-Host "   → 请运行 [2] 应用汉化 重新翻译" -ForegroundColor Cyan
+                        } else {
+                            Write-Host "   → 自动解决冲突失败，请手动处理" -ForegroundColor Red
+                        }
+                    } else {
+                        # pop 成功，检查是否有残留冲突
+                        $conflictInfo = Test-GitConflict
+                        if ($conflictInfo.HasConflict) {
+                            Write-Host "   → 发现残留冲突，自动解决..." -ForegroundColor Yellow
+                            $null = Resolve-GitConflict
+                        }
                     }
                 }
             } elseif ($hasLocalChanges -and !$stashSuccess) {
-                # stash 失败但原修改还在，提示用户
-                Write-Host "   → 汉化保留在源码目录中" -ForegroundColor Yellow
+                # stash 失败但原修改还在，检查是否有冲突
+                $conflictInfo = Test-GitConflict
+                if ($conflictInfo.HasConflict) {
+                    Write-Host "   → 检测到残留冲突，自动解决..." -ForegroundColor Yellow
+                    $null = Resolve-GitConflict
+                } else {
+                    Write-Host "   → 汉化保留在源码目录中" -ForegroundColor Yellow
+                }
             }
 
             if (!$success -and $detectedProxy) {
@@ -3496,6 +3858,9 @@ function Invoke-OneClickFull {
         Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         Write-Output ""
         Update-SupportedCommit
+
+        # 自动提交到 Git
+        Commit-LanguagePackUpdate
         Write-Output ""
     }
 
