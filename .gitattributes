@@ -5,7 +5,7 @@
 
 # PowerShell 脚本使用 CRLF (Windows 标准)
 *.ps1 text eol=crlf
-*.psm1 text eol=crlj
+*.psm1 text eol=crlf
 
 # 其他文本文件
 *.md text eol=lf

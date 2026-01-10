@@ -57,13 +57,13 @@
 #### Windows 一键安装
 
 ```powershell
-irm https://github.com/1186258278/OpenCodeChineseTranslation/releases/latest/download/init-dev-env.ps1 | iex
+irm https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/init-dev-env.ps1 | iex
 ```
 
 #### Linux/macOS 一键安装
 
 ```bash
-curl -fsSL https://github.com/1186258278/OpenCodeChineseTranslation/releases/latest/download/init-dev-env.sh | bash
+curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/init-dev-env.sh | bash
 ```
 
 #### 支持的组件
@@ -88,11 +88,11 @@ curl -fsSL https://github.com/1186258278/OpenCodeChineseTranslation/releases/lat
 #### 静默模式（自动安装所有）
 
 ```powershell
-# Windows
-irm https://github.com/1186258278/OpenCodeChineseTranslation/releases/latest/download/init-dev-env.ps1 | iex; init-dev-env.ps1 -Quiet
+# Windows - 静默模式
+iex "& { irm https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/init-dev-env.ps1 | iex } -Quiet"
 
-# Linux/macOS
-curl -fsSL https://github.com/1186258278/OpenCodeChineseTranslation/releases/latest/download/init-dev-env.sh | bash; ./init-dev-env.sh --quiet
+# Linux/macOS - 静默模式
+curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/scripts/init-dev-env.sh | bash -s -- --quiet
 ```
 
 ---
