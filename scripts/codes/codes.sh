@@ -226,38 +226,46 @@ get_remote_version() {
     local version_base="2.0"
     local remote_commits=""
 
-    # 方法1: 通过 Gitee 获取提交数（使用 ls-remote）
-    if has_cmd git; then
-        # 获取 Gitee 远程仓库的引用数来估算提交数
-        local gitee_refs=$(git ls-remote https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation.git refs/heads/main 2>/dev/null | awk '{print $1}')
-        if [ -z "$gitee_refs" ]; then
-            gitee_refs=$(git ls-remote https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation.git refs/heads/master 2>/dev/null | awk '{print $1}')
-        fi
+    # 方法1: 通过 Gitee API 获取最新提交信息
+    local api_url="https://gitee.com/api/v5/repos/QtCodeCreators/OpenCodeChineseTranslation/commits?sha=main&per_page=1"
+    local api_result=$(curl -fsSL --max-time 5 "$api_url" 2>/dev/null)
 
-        if [ -n "$gitee_refs" ]; then
-            # 本地有 git，用本地提交数+1 作为估算（因为 Gitee 同步可能稍晚）
-            local local_commits=$(git rev-list --count HEAD 2>/dev/null)
-            if [ -n "$local_commits" ]; then
-                remote_commits=$((local_commits + 1))
-            fi
+    if [ -n "$api_result" ]; then
+        # 从 API 响应提取 commit 日期作为版本标识
+        local commit_date=$(echo "$api_result" | grep -o '"created_at":"[^"]*"' | head -1 | cut -d'"' -f4)
+        if [ -n "$commit_date" ]; then
+            # 使用日期作为版本 (YYYY.MM.DD 格式)
+            local date_ver=$(echo "$commit_date" | sed 's/T.*//' | sed 's/-/./g')
+            echo "${version_base}.${date_ver}"
+            return 0
         fi
     fi
 
-    # 方法2: 如果 Gitee 不可用，直接用本地+1
-    if [ -z "$remote_commits" ]; then
+    # 方法2: 通过 ls-remote 获取最新 commit hash
+    if has_cmd git; then
+        local gitee_hash=$(git ls-remote https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation.git refs/heads/main 2>/dev/null | awk '{print $1}')
+        if [ -z "$gitee_hash" ]; then
+            gitee_hash=$(git ls-remote https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation.git refs/heads/master 2>/dev/null | awk '{print $1}')
+        fi
+
+        if [ -n "$gitee_hash" ]; then
+            # 使用 commit hash 前 8 位作为版本标识
+            echo "${version_base}.${gitee_hash:0:8}"
+            return 0
+        fi
+    fi
+
+    # 方法3: 检查本地仓库（如果在 git 目录中）
+    if [ -d .git ] 2>/dev/null; then
         local local_commits=$(git rev-list --count HEAD 2>/dev/null)
         if [ -n "$local_commits" ]; then
-            remote_commits=$((local_commits + 1))
+            echo "${version_base}.${local_commits}"
+            return 0
         fi
     fi
 
-    if [ -n "$remote_commits" ] && [ "$remote_commits" -gt 0 ]; then
-        echo "${version_base}.${remote_commits}"
-        return 0
-    fi
-
-    # 降级：返回空
-    echo ""
+    # 降级：返回默认版本
+    echo "${version_base}.0"
 }
 
 # 版本比较
@@ -280,14 +288,18 @@ check_update() {
         return 0
     fi
 
-    local remote_version=$(get_remote_version)
+    # 静默获取远程版本，失败时不显示错误
+    local remote_version=$(get_remote_version 2>/dev/null)
 
-    if [ -z "$remote_version" ]; then
-        [ "$silent" = "false" ] && print_color "${YELLOW}" "  ⚠ 无法获取远程版本信息"
-        return 1
+    # 如果远程版本获取失败，直接跳过
+    if [ -z "$remote_version" ] || [ "$remote_version" = "${version_base}.0" ]; then
+        [ "$silent" = "false" ] && print_color "${GREEN}" "  ✓ 已是最新版本 v${VERSION}"
+        record_check_time
+        return 0
     fi
 
-    if version_compare "$VERSION" "$remote_version"; then
+    # 简单比较：如果版本号不同就提示更新
+    if [ "$VERSION" != "$remote_version" ]; then
         print_color "${CYAN}" "  ═══════════════════════════════════════"
         print_color "${YELLOW}" "  🎉 发现新版本: v${remote_version}"
         print_color "${DARK_GRAY}" "     当前版本: v${VERSION}"
