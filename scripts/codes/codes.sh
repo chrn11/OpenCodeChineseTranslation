@@ -856,17 +856,12 @@ install_opencode() {
     print_separator
     echo ""
 
-    # 检查是否已安装
-    if has_cmd opencode; then
-        print_color "${GREEN}" "  ✓ OpenCode 已安装"
-        echo ""
-        if confirm_action "是否更新汉化配置？"; then
-            install_opencode_i18n
-            return 0
-        else
-            return 0
-        fi
-    fi
+    # 确定安装目录（使用当前目录）
+    local opencode_dir="$PWD/opencode-zh-CN"
+    local project_dir="$PWD"
+
+    print_color "${CYAN}" "  安装目录: $project_dir"
+    echo ""
 
     # 检查 Node.js
     if ! has_cmd node; then
@@ -878,16 +873,26 @@ install_opencode() {
         fi
     fi
 
+    # 检查 Git
+    if ! has_cmd git; then
+        print_color "${RED}" "  ✗ 需要先安装 Git"
+        if confirm_action "是否现在安装 Git？"; then
+            install_git
+        else
+            return 1
+        fi
+    fi
+
     print_color "${CYAN}" "  正在克隆 OpenCode 源码..."
     echo ""
-
-    local opencode_dir="$HOME/opencode-zh-CN"
 
     if [ -d "$opencode_dir" ]; then
         print_color "${YELLOW}" "  ⊙ 目录已存在，正在更新..."
         (cd "$opencode_dir" && git pull --rebase 2>/dev/null)
     else
-        (git clone https://github.com/anomalyco/opencode.git "$opencode_dir" 2>/dev/null) &
+        # 使用 Gitee 镜像（更快）
+        (git clone --depth 1 https://gitee.com/mirrors/opencode.git "$opencode_dir" 2>/dev/null || \
+         git clone --depth 1 https://github.com/anomalyco/opencode.git "$opencode_dir" 2>/dev/null) &
 
         local pid=$!
         show_spinner $pid "克隆中..."
@@ -898,11 +903,11 @@ install_opencode() {
         print_color "${GREEN}" "  ✓ OpenCode 源码准备完成"
         print_color "${YELLOW}" "  ! 目录: $opencode_dir"
         echo ""
-        print_color "${CYAN}" "  下一步:"
-        echo "    cd $opencode_dir"
-        echo "    npm install"
-        echo "    npm run build"
-        echo "    npm run start"
+
+        # 询问是否安装汉化脚本
+        if confirm_action "是否继续安装汉化管理工具？"; then
+            install_opencode_i18n
+        fi
     else
         print_color "${RED}" "  ✗ 克隆失败，请检查网络连接"
         return 1
@@ -1027,14 +1032,53 @@ install_opencode_i18n() {
 
             if [ $? -eq 0 ]; then
                 print_color "${GREEN}" "  ✓ 依赖安装完成"
+
+                # 创建全局命令
                 echo ""
-                print_color "${CYAN}}" "  使用方法:"
-                echo "    cd $opencode_linux_dir"
-                echo "    ./opencode.js              # 启动交互菜单"
-                echo "    ./opencode.js full         # 一键全流程"
+                print_color "${CYAN}" "  正在创建全局命令..."
+
+                local cmd_dir="$HOME/.local/bin"
+                local cmd_file="$cmd_dir/opencodecmd"
+                mkdir -p "$cmd_dir" 2>/dev/null
+
+                cat > "$cmd_file" << 'CMDEOF'
+#!/bin/bash
+# OpenCode 中文汉化管理工具
+find_and_run() {
+    local dir="$(pwd)"
+    while [ "$dir" != "/" ]; do
+        if [ -f "$dir/scripts/opencode-linux/opencode.js" ]; then
+            node "$dir/scripts/opencode-linux/opencode.js" "$@"
+            return 0
+        fi
+        dir="$(dirname "$dir")"
+    done
+    echo "错误: 请在 OpenCode 项目目录中运行此命令" >&2
+    exit 1
+}
+find_and_run "$@"
+CMDEOF
+
+                chmod +x "$cmd_file" 2>/dev/null
+
+                # 添加到 PATH
+                if [[ ":$PATH:" != *":$cmd_dir:"* ]]; then
+                    export PATH="$cmd_dir:$PATH"
+                    # 添加到 .bashrc
+                    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc 2>/dev/null
+                    print_color "${YELLOW}" "  ✓ 已将 ~/.local/bin 添加到 PATH"
+                fi
+
+                print_color "${GREEN}" "  ✓ 全局命令已创建: opencodecmd"
                 echo ""
-                print_color "${YELLOW}" "  创建全局命令 (可选):"
-                echo "    cd $opencode_linux_dir && npm link"
+                print_color "${CYAN}" "  使用方法:"
+                echo "    opencodecmd              # 启动交互菜单"
+                echo "    opencodecmd update       # 拉取源码"
+                echo "    opencodecmd apply        # 应用汉化"
+                echo "    opencodecmd build        # 编译构建"
+                echo "    opencodecmd full         # 一键全流程"
+                echo ""
+                print_color "${YELLOW}}" "  现在可以在任何位置运行 opencodecmd"
             else
                 print_color "${YELLOW}" "  ⚠ 依赖安装可能有问题，请手动运行: cd $opencode_linux_dir && npm install"
             fi
@@ -1058,12 +1102,26 @@ install_opencode_i18n() {
         if [ -f "$opencode_dir/opencode.ps1" ]; then
             print_color "${GREEN}" "  ✓ 汉化脚本安装成功！"
             echo ""
-            print_color "${CYAN}}" "  使用方法:"
+            print_color "${CYAN}" "  使用方法:"
             echo "    cd $project_dir"
             echo "    pwsh ./scripts/opencode/opencode.ps1"
             echo ""
             print_color "${YELLOW}" "  Windows 全局命令（添加到 $PROFILE）:"
-            echo '    function opencodecmd { & "C:\Data\PC\OpenCode\scripts\opencode\opencode.ps1" @Args }'
+            echo '    function opencodecmd { & "'"$project_dir"'\scripts\opencode\opencode.ps1" @Args }'
+
+            # 自动添加到 PowerShell Profile
+            local ps_profile="$HOME/.config/powershell/Microsoft.PowerShell_profile.ps1"
+            [ -f "$PROFILE" ] && ps_profile="$PROFILE"
+
+            if ! grep -q "opencodecmd" "$ps_profile" 2>/dev/null; then
+                echo ""
+                print_color "${CYAN}" "  正在添加全局命令到 PowerShell Profile..."
+                echo "" >> "$ps_profile"
+                echo "# OpenCode 汉化工具全局命令" >> "$ps_profile"
+                echo "function opencodecmd { & '$project_dir\scripts\opencode\opencode.ps1' @Args }" >> "$ps_profile"
+                print_color "${GREEN}" "  ✓ 已添加到: $ps_profile"
+                print_color "${YELLOW}" "  ! 重新打开 PowerShell 后生效"
+            fi
         else
             print_color "${RED}" "  ✗ 下载失败，请检查网络"
             return 1
@@ -1673,10 +1731,66 @@ main() {
             install_claudecode
             ;;
         opencode)
-            install_opencode
+            # 检查是否已安装，如果已安装则直接启动
+            local os_type="$(uname -s)"
+            local is_linux=false
+            case "$os_type" in
+                Linux*) is_linux=true ;;
+                MINGW*|MSYS*|CYGWIN*) is_linux=false ;;
+                Darwin*) is_linux=true ;;
+            esac
+
+            if [ "$is_linux" = true ] && [ -f "./scripts/opencode-linux/opencode.js" ]; then
+                # Linux/macOS - 直接启动
+                node ./scripts/opencode-linux/opencode.js "$@"
+            elif [ -f "./scripts/opencode/opencode.ps1" ]; then
+                # Windows - 提示用户使用 PowerShell
+                print_color "${CYAN}" "  启动 OpenCode 汉化脚本..."
+                echo ""
+                print_color "${YELLOW}" "  请在 PowerShell 中运行:"
+                echo "    .\\scripts\\opencode\\opencode.ps1"
+                echo ""
+                print_color "${CYAN}" "  或使用全局命令:"
+                echo "    opencodecmd"
+            else
+                # 未安装，运行安装
+                install_opencode
+            fi
             ;;
         i18n|chinese|localization)
             install_opencode_i18n
+            ;;
+        run|start|launch)
+            # 直接启动汉化脚本
+            shift 2>/dev/null || true
+            local os_type="$(uname -s)"
+            local is_linux=false
+            case "$os_type" in
+                Linux*) is_linux=true ;;
+                MINGW*|MSYS*|CYGWIN*) is_linux=false ;;
+                Darwin*) is_linux=true ;;
+            esac
+
+            if [ "$is_linux" = true ]; then
+                # 查找并启动 Linux 版本
+                local found=false
+                local dir="$(pwd)"
+                while [ "$dir" != "/" ]; do
+                    if [ -f "$dir/scripts/opencode-linux/opencode.js" ]; then
+                        cd "$dir" && node ./scripts/opencode-linux/opencode.js "$@"
+                        found=true
+                        break
+                    fi
+                    dir="$(dirname "$dir")"
+                done
+                if [ "$found" = false ]; then
+                    print_color "${RED}" "  ✗ 未找到 OpenCode 汉化脚本"
+                    echo ""
+                    print_color "${YELLOW}" "  请先运行: codes i18n"
+                fi
+            else
+                print_color "${YELLOW}" "  请在 PowerShell 中运行: opencodecmd"
+            fi
             ;;
         update|self-update)
             cmd_update
