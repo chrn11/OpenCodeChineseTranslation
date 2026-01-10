@@ -373,26 +373,28 @@ function Get-RemoteScriptVersion {
     $versionBase = "5.5"
     $remoteCommits = $null
 
-    # 方法1: 从远程 git 获取提交数
+    # 方法1: 通过 Gitee 获取提交数（使用 ls-remote）
     try {
         $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { "." }
-        $repoRoot = git -C $scriptDir rev-parse --show-toplevel 2>$null
 
-        if ($repoRoot) {
-            # 先 fetch 远程信息
-            git -C $repoRoot fetch --quiet origin 2>$null
+        # 检查 Gitee 远程仓库是否可访问
+        $giteeRefs = git ls-remote https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation.git refs/heads/main 2>$null | Select-Object -First 1
+        if ([string]::IsNullOrEmpty($giteeRefs)) {
+            $giteeRefs = git ls-remote https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation.git refs/heads/master 2>$null | Select-Object -First 1
+        }
 
-            # 获取远程提交数
-            $remoteCommits = git -C $repoRoot rev-list --count origin/main 2>$null
-            if ([string]::IsNullOrEmpty($remoteCommits)) {
-                $remoteCommits = git -C $repoRoot rev-list --count origin/master 2>$null
+        if ($giteeRefs) {
+            # Gitee 可访问，用本地提交数+1 估算
+            $localCommits = git -C $scriptDir rev-list --count HEAD 2>$null
+            if ($localCommits) {
+                $remoteCommits = [int]$localCommits + 1
             }
         }
     } catch {
         # 忽略 git 错误
     }
 
-    # 方法2: 使用本地提交数+1 估算
+    # 方法2: 直接用本地提交数+1
     if ([string]::IsNullOrEmpty($remoteCommits)) {
         try {
             $localCommits = git -C $SCRIPT_DIR rev-list --count HEAD 2>$null

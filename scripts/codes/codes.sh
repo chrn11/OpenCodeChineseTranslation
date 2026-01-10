@@ -225,27 +225,26 @@ record_check_time() {
 # 获取远程最新版本
 get_remote_version() {
     local version_base="2.0"
-
-    # 方法1: 从远程仓库 git 获取提交数
     local remote_commits=""
+
+    # 方法1: 通过 Gitee 获取提交数（使用 ls-remote）
     if has_cmd git; then
-        # 获取远程默认分支的最新提交
-        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        local repo_root="$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null)"
+        # 获取 Gitee 远程仓库的引用数来估算提交数
+        local gitee_refs=$(git ls-remote https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation.git refs/heads/main 2>/dev/null | awk '{print $1}')
+        if [ -z "$gitee_refs" ]; then
+            gitee_refs=$(git ls-remote https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation.git refs/heads/master 2>/dev/null | awk '{print $1}')
+        fi
 
-        if [ -n "$repo_root" ]; then
-            # 先 fetch 远程信息
-            git -C "$repo_root" fetch --quiet origin 2>/dev/null
-
-            # 获取远程提交数
-            remote_commits=$(git -C "$repo_root" rev-list --count origin/main 2>/dev/null)
-            if [ -z "$remote_commits" ]; then
-                remote_commits=$(git -C "$repo_root" rev-list --count origin/master 2>/dev/null)
+        if [ -n "$gitee_refs" ]; then
+            # 本地有 git，用本地提交数+1 作为估算（因为 Gitee 同步可能稍晚）
+            local local_commits=$(git rev-list --count HEAD 2>/dev/null)
+            if [ -n "$local_commits" ]; then
+                remote_commits=$((local_commits + 1))
             fi
         fi
     fi
 
-    # 方法2: 如果 git 方法失败，使用本地+1 估算
+    # 方法2: 如果 Gitee 不可用，直接用本地+1
     if [ -z "$remote_commits" ]; then
         local local_commits=$(git rev-list --count HEAD 2>/dev/null)
         if [ -n "$local_commits" ]; then
