@@ -1556,7 +1556,8 @@ main() {
                     8) cmd_helper ;;
                     9) cmd_env ;;
                     p|P) cmd_env_permanent ;;
-                    u|U) [ "$choice" = "u" ] && cmd_check_update || cmd_update ;;
+                    u) cmd_check_update ;;
+                    U) cmd_update ;;
                     0)
                         print_color "${DARK_GRAY}" "再见！"
                         exit 0
