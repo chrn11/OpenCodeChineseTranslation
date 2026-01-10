@@ -68,6 +68,65 @@ command_exists() {
     command -v "$1" &> /dev/null
 }
 
+# 加载 nvm 环境（如果已安装）
+load_nvm() {
+    if [ -d "$HOME/.nvm" ] && [ -s "$HOME/.nvm/nvm.sh" ]; then
+        export NVM_DIR="$HOME/.nvm"
+        \. "$NVM_DIR/nvm.sh"
+        return 0
+    fi
+    return 1
+}
+
+# 加载 bun 环境（如果已安装）
+load_bun() {
+    if [ -d "$HOME/.bun/bin" ]; then
+        export BUN_INSTALL="$HOME/.bun"
+        export PATH="$BUN_INSTALL/bin:$PATH"
+        return 0
+    fi
+    return 1
+}
+
+# 增强版命令检测（包括 nvm/bun 路径）
+command_exists_any() {
+    # 检查 PATH
+    command -v "$1" &> /dev/null && return 0
+
+    # 检查 nvm 安装的 node/npm
+    if [ "$1" = "node" ] || [ "$1" = "npm" ]; then
+        [ -x "$HOME/.nvm/versions/node/*/bin/$1" ] 2>/dev/null && return 0
+    fi
+
+    # 检查 bun 安装
+    if [ "$1" = "bun" ]; then
+        [ -x "$HOME/.bun/bin/bun" ] 2>/dev/null && return 0
+    fi
+
+    return 1
+}
+
+# 获取版本（增强版）
+get_version_any() {
+    # 先尝试直接调用
+    if command -v "$1" &> /dev/null; then
+        "$1" --version 2>&1 | head -n 1 || echo "unknown"
+        return
+    fi
+
+    # 检查 nvm 安装的版本
+    if [ -x "$HOME/.nvm/versions/node/*/bin/$1" ] 2>/dev/null; then
+        "$HOME/.nvm/versions/node/*/bin/$1" --version 2>&1 | head -n 1
+        return
+    fi
+
+    # 检查 bun
+    if [ "$1" = "bun" ] && [ -x "$HOME/.bun/bin/bun" ] 2>/dev/null; then
+        "$HOME/.bun/bin/bun" --version 2>&1 | head -n 1
+        return
+    fi
+}
+
 get_version() {
     if command_exists "$1"; then
         "$1" --version 2>&1 | head -n 1 || echo "unknown"
@@ -191,10 +250,19 @@ detect_package_manager() {
 install_nodejs() {
     print_color "$CYAN" "[1/5] 安装 Node.js..."
 
-    if command_exists node; then
-        local version=$(get_version node)
+    # 先加载 nvm（如果已安装）
+    load_nvm
+
+    # 使用增强检测
+    if command_exists_any node || command_exists node; then
+        local version=$(get_version_any node)
         print_color "$YELLOW" "  ⊙ Node.js 已安装: $version"
         record_skipped "Node.js ($version)"
+
+        # 配置 npm 国内镜像
+        if command_exists npm || command_exists_any npm; then
+            npm config set registry "$NPM_REGISTRY" 2>/dev/null
+        fi
         return 0
     fi
 
@@ -203,16 +271,14 @@ install_nodejs() {
     # 检查 nvm 目录是否已存在
     if [ -d "$HOME/.nvm" ]; then
         print_color "$YELLOW" "  nvm 目录已存在，直接加载..."
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        load_nvm
     fi
 
     # 方法1: 尝试 Gitee 镜像
     if ! command_exists nvm && [ ! -d "$HOME/.nvm" ]; then
         print_color "$DARK_GRAY" "  方法1: 使用 Gitee 镜像安装 nvm..."
         if curl -o- "$NVM_MIRROR_CN" 2>/dev/null | bash 2>/dev/null; then
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            load_nvm
         fi
     fi
 
@@ -220,26 +286,28 @@ install_nodejs() {
     if ! command_exists nvm && [ ! -d "$HOME/.nvm" ]; then
         print_color "$YELLOW" "  方法2: 使用官方源（可能较慢）..."
         if curl -o- "$NVM_MIRROR_ORIGINAL" 2>/dev/null | bash 2>/dev/null; then
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            load_nvm
         fi
     fi
 
     # 安装 Node.js
-    if command_exists nvm; then
+    if command_exists nvm || [ -d "$HOME/.nvm" ]; then
+        load_nvm
         nvm install --lts 2>/dev/null
         nvm alias default lts/* 2>/dev/null
-        export NVM_DIR="$HOME/.nvm"
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        load_nvm  # 重新加载以获取新安装的 node
 
-        if command_exists node; then
-            local version=$(get_version node)
+        # 再次检查（使用增强检测）
+        if command_exists_any node || command_exists node; then
+            local version=$(get_version_any node)
             print_color "$GREEN" "  ✓ Node.js 安装成功: $version"
             record_success "Node.js ($version)"
 
             # 配置 npm 国内镜像
-            npm config set registry "$NPM_REGISTRY" 2>/dev/null
-            print_color "$DARK_GRAY" "  ✓ npm 已配置国内镜像"
+            if command_exists npm || command_exists_any npm; then
+                npm config set registry "$NPM_REGISTRY" 2>/dev/null
+                print_color "$DARK_GRAY" "  ✓ npm 已配置国内镜像"
+            fi
 
             # 添加到 bashrc
             if ! grep -q 'NVM_DIR' ~/.bashrc 2>/dev/null; then
@@ -366,7 +434,11 @@ install_python() {
 install_coding_helper() {
     print_color "$CYAN" "[5/5] 安装 @z_ai/coding-helper..."
 
-    if ! command_exists npm; then
+    # 确保 nvm 已加载
+    load_nvm
+
+    # 使用增强检测 npm
+    if ! command_exists npm && ! command_exists_any npm; then
         print_color "$RED" "  ✗ 需要先安装 npm"
         record_failed "coding-helper" "npm 未安装"
         return 1
