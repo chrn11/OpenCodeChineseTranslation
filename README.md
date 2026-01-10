@@ -36,7 +36,27 @@
 
 ### 🚀 快速开始
 
-#### 步骤 1：安装 Codes 管理工具
+#### 方式一：使用预编译版本（推荐，无需编译）
+
+[下载预编译版本](https://github.com/1186258278/OpenCodeChineseTranslation/releases) | [查看编译环境](RELEASE.md)
+
+```powershell
+# Windows - 下载后直接运行
+opencode.exe
+
+# Linux/macOS - 下载后添加执行权限
+chmod +x opencode
+./opencode
+```
+
+**预编译版本说明**：
+- 编译环境：Windows 11 + Bun 1.3.5
+- 支持：Windows x64, Linux x64, macOS arm64/x64
+- 限制：仅包含二进制文件，配置需自行设置
+
+#### 方式二：完整安装（包含所有功能）
+
+##### 步骤 1：安装 Codes 管理工具
 
 **Codes** 是本项目的开发环境管理工具，安装后获得全局命令：
 
