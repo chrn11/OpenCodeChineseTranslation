@@ -5,7 +5,7 @@
 # 功能: 环境诊断 / 组件管理 / 工具安装 / 汉化配置
 # ========================================
 
-VERSION="2.0.0"
+VERSION="2.0.2"
 
 # 颜色定义
 RED='\033[0;31m'
@@ -1147,6 +1147,108 @@ cmd_helper() {
     fi
 }
 
+# ==================== 环境配置 ====================
+# 获取用户的 shell 配置文件
+get_shell_rc() {
+    if [ -n "$ZSH_VERSION" ]; then
+        echo "$HOME/.zshrc"
+    elif [ -n "$BASH_VERSION" ]; then
+        # 优先 ~/.bash_profile（登录 shell），回退到 ~/.bashrc
+        if [ -f "$HOME/.bash_profile" ]; then
+            echo "$HOME/.bash_profile"
+        else
+            echo "$HOME/.bashrc"
+        fi
+    else
+        # 默认 ~/.profile
+        echo "$HOME/.profile"
+    fi
+}
+
+# 永久写入环境变量到 shell 配置文件
+make_permanent() {
+    local rc_file=$(get_shell_rc)
+    local marker_start="# >>> OpenCode Codes Config Start >>>"
+    local marker_end="# <<< OpenCode Codes Config End <<<"
+
+    # 检查是否已配置
+    if grep -q "$marker_start" "$rc_file" 2>/dev/null; then
+        print_color "${YELLOW}" "  ⚠ 已存在永久配置，如需重新配置请手动编辑:"
+        print_color "${DARK_GRAY}" "     $rc_file"
+        return 1
+    fi
+
+    print_color "${CYAN}" "  → 写入永久配置到: $rc_file"
+
+    # 收集需要配置的环境变量
+    local config_content=""
+    config_content="$marker_start\n"
+    config_content="$config_content# OpenCode Codes - 开发环境自动配置\n"
+    config_content="$config_content# 此区块由 codes 命令自动生成，请勿手动修改\n"
+    config_content="$config_content\n"
+
+    # NVM
+    if [ -n "$NVM_DIR" ] && [ -d "$NVM_DIR" ]; then
+        config_content="$config_contentexport NVM_DIR=\"$NVM_DIR\"\n"
+        config_content="$config_content[ -s \"\$NVM_DIR/nvm.sh\" ] && \. \"\$NVM_DIR/nvm.sh\"\n"
+    fi
+
+    # Bun
+    if [ -n "$BUN_INSTALL" ] && [ -d "$BUN_INSTALL" ]; then
+        config_content="$config_contentexport BUN_INSTALL=\"$BUN_INSTALL\"\n"
+        config_content="$config_contentexport PATH=\"\$BUN_INSTALL/bin:\$PATH\"\n"
+    fi
+
+    # npm bin
+    if has_cmd npm; then
+        local npm_bin=$(npm config get prefix 2>/dev/null)/bin
+        if [ -n "$npm_bin" ] && [ -d "$npm_bin" ]; then
+            # 检查是否已在 PATH 中
+            if [[ ":$PATH:" != *":$npm_bin:"* ]]; then
+                config_content="$config_content# npm 全局 bin 目录\n"
+                config_content="$config_contentexport PATH=\"$npm_bin:\$PATH\"\n"
+            fi
+        fi
+    fi
+
+    config_content="$config_content\n$marker_end\n"
+
+    # 写入配置文件
+    echo -e "$config_content" >> "$rc_file"
+
+    print_color "${GREEN}" "  ✓ 永久配置已写入"
+    print_color "${YELLOW}" "  ! 请运行以下命令使配置生效:"
+    print_color "${WHITE}" "     source $rc_file"
+    print_color "${DARK_GRAY}" "     或重新打开终端"
+    return 0
+}
+
+# 自动配置（安装完成后调用）
+auto_config() {
+    local rc_file=$(get_shell_rc)
+
+    # 检查是否已有配置
+    if grep -q "OpenCode Codes Config" "$rc_file" 2>/dev/null; then
+        return 0
+    fi
+
+    # 询问用户是否要永久配置
+    echo ""
+    print_color "${YELLOW}" "  是否将环境变量永久写入配置文件？"
+    print_color "${WHITE}" "  [Y] 是 - 永久生效 (推荐)"
+    print_color "${WHITE}" "  [n] 否 - 每次手动加载"
+    echo ""
+    read -p "  请选择 (Y/n): " auto_confirm
+
+    if [[ "$auto_confirm" =~ ^[Nn]$ ]]; then
+        print_color "${DARK_GRAY}" "  跳过永久配置"
+        return 0
+    fi
+
+    make_permanent
+    return $?
+}
+
 cmd_env() {
     print_header
     print_color "${YELLOW}" "       环境变量"
@@ -1172,6 +1274,21 @@ cmd_env() {
     fi
     echo ""
 
+    # 检查永久配置状态
+    local rc_file=$(get_shell_rc)
+    local has_permanent=false
+    if grep -q "OpenCode Codes Config" "$rc_file" 2>/dev/null; then
+        has_permanent=true
+    fi
+
+    print_color "${CYAN}" "永久配置:"
+    if [ "$has_permanent" = true ]; then
+        echo -e "  ${GREEN}[✓]${NC} 已配置: $rc_file"
+    else
+        echo -e "  ${YELLOW}[○]${NC} 未配置"
+    fi
+    echo ""
+
     # 环境变量
     print_color "${CYAN}" "环境变量:"
     echo "  NVM_DIR=${NVM_DIR:-未设置}"
@@ -1185,24 +1302,29 @@ cmd_env() {
     fi
     echo ""
 
-    # 导出命令
-    print_color "${YELLOW}" "导出环境变量（复制到其他终端使用）:"
-    echo -e "${DARK_GRAY}"
-    if [ -n "$NVM_DIR" ]; then
-        echo "export NVM_DIR=\"$NVM_DIR\""
-        echo "[ -s \"\$NVM_DIR/nvm.sh\" ] && \. \"\$NVM_DIR/nvm.sh\""
+    # 快捷命令
+    print_color "${YELLOW}" "快捷命令:"
+    echo -e "  ${DARK_GRAY}codes env-permanent${NC}  - 永久写入环境变量"
+    echo ""
+
+    # 如果未配置，提示用户
+    if [ "$has_permanent" = false ]; then
+        print_color "${YELLOW}" "提示: 运行 ${CYAN}codes env-permanent${YELLOW} 可永久配置环境变量"
+        echo ""
     fi
-    if [ -n "$BUN_INSTALL" ]; then
-        echo "export BUN_INSTALL=\"$BUN_INSTALL\""
-        echo "export PATH=\"\$BUN_INSTALL/bin:\$PATH\""
-    fi
-    if has_cmd npm; then
-        local npm_bin=$(npm config get prefix 2>/dev/null)/bin
-        if [ -n "$npm_bin" ] && [ -d "$npm_bin" ]; then
-            echo "export PATH=\"$npm_bin:\$PATH\""
-        fi
-    fi
-    echo -e "${NC}"
+}
+
+# 永久配置命令
+cmd_env_permanent() {
+    print_header
+    print_color "${YELLOW}" "       永久配置环境变量"
+    print_separator
+    echo ""
+
+    make_permanent
+
+    echo ""
+    read -p "按回车键继续..."
 }
 
 # ==================== 主菜单 ====================
@@ -1242,13 +1364,14 @@ show_menu() {
     echo -e "${CYAN}   ║${NC}  ${GREEN}[U]${NC} 更新 Codes     ${DARK_GRAY}- 自动更新到最新版${NC}             ${CYAN}║${NC}"
     echo -e "${CYAN}   ╠═══════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}   ║${NC}  ${CYAN}[9]${NC} 环境变量       ${DARK_GRAY}- 显示/导出环境变量${NC}            ${CYAN}║${NC}"
+    echo -e "${CYAN}   ║${NC}  ${YELLOW}[p]${NC} 永久配置      ${DARK_GRAY}- 一键写入环境变量${NC}             ${CYAN}║${NC}"
     echo -e "${CYAN}   ║${NC}  ${RED}[0]${NC} 退出                                             ${CYAN}║${NC}"
     echo -e "${CYAN}   ╚═══════════════════════════════════════════════╝${NC}"
     echo ""
 
     echo -e "${DARK_GRAY}提示: 也可以直接运行 'codes <命令>'，如: codes doctor${NC}"
     echo -e "${DARK_GRAY}      'codes install [编号]' 可指定安装组件${NC}"
-    echo -e "${DARK_GRAY}      'codes update' 检查并更新 Codes${NC}"
+    echo -e "${DARK_GRAY}      'codes env-permanent' 永久配置环境变量${NC}"
     echo ""
 }
 
@@ -1271,6 +1394,7 @@ show_help() {
     echo -e "  ${GREEN}i18n${NC}            汉化脚本 - 安装汉化管理工具"
     echo -e "  ${GREEN}helper${NC} [...]   coding-helper - 启动智谱编码助手"
     echo -e "  ${GREEN}env${NC}             环境变量 - 显示/导出环境变量"
+    echo -e "  ${GREEN}env-permanent${NC}  永久配置 - 一键写入环境变量"
     echo -e "  ${GREEN}update${NC}          检查并更新 Codes 到最新版本"
     echo -e "  ${GREEN}check-update${NC}    检查 Codes 新版本"
     echo -e "  ${GREEN}menu${NC}            显示交互菜单"
@@ -1285,6 +1409,7 @@ show_help() {
     echo "  codes claude              # 安装 Claude Code"
     echo "  codes opencode            # 安装 OpenCode"
     echo "  codes i18n                 # 安装汉化脚本"
+    echo "  codes env-permanent       # 永久配置环境变量"
     echo "  codes update              # 更新 Codes"
     echo "  codes check-update        # 检查更新"
     echo ""
@@ -1377,6 +1502,9 @@ main() {
         env|environment)
             cmd_env
             ;;
+        env-permanent|permanent)
+            cmd_env_permanent
+            ;;
         claude|claudecode)
             install_claudecode
             ;;
@@ -1414,6 +1542,7 @@ main() {
                     7) install_opencode_i18n ;;
                     8) cmd_helper ;;
                     9) cmd_env ;;
+                    p|P) cmd_env_permanent ;;
                     u|U) [ "$choice" = "u" ] && cmd_check_update || cmd_update ;;
                     0)
                         print_color "${DARK_GRAY}" "再见！"

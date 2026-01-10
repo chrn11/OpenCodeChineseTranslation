@@ -11,7 +11,7 @@ BRANCH="main"
 REPO_GITEE="QtCodeCreators/OpenCodeChineseTranslation"
 LIB_DIR="/usr/local/lib/codes"
 BIN_DIR="/usr/local/bin"
-EXPECTED_VERSION="2.0.0"
+EXPECTED_VERSION="2.0.2"
 
 # 智能 sudo
 SUDO_CMD=""
