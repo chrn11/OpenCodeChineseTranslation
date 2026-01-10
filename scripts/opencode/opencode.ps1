@@ -371,24 +371,41 @@ function Set-UpdateCheckTime {
 
 function Get-RemoteScriptVersion {
     $versionBase = "5.5"
+    $remoteCommits = $null
 
+    # 方法1: 从远程 git 获取提交数
     try {
-        # 通过 GitHub API 获取提交数
-        $response = Invoke-RestMethod -Uri "https://api.github.com/repos/1186258278/OpenCodeChineseTranslation/commits?per_page=1" -TimeoutSec 5 -ErrorAction Stop
-        # 从 Link header 或 API 响应获取总提交数
-        if ($response.PSObject.Properties['total_count']) {
-            return "$versionBase.$($response.total_count)"
+        $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { "." }
+        $repoRoot = git -C $scriptDir rev-parse --show-toplevel 2>$null
+
+        if ($repoRoot) {
+            # 先 fetch 远程信息
+            git -C $repoRoot fetch --quiet origin 2>$null
+
+            # 获取远程提交数
+            $remoteCommits = git -C $repoRoot rev-list --count origin/main 2>$null
+            if ([string]::IsNullOrEmpty($remoteCommits)) {
+                $remoteCommits = git -C $repoRoot rev-list --count origin/master 2>$null
+            }
         }
     } catch {
-        # 备用：使用本地提交数+1 估算
+        # 忽略 git 错误
+    }
+
+    # 方法2: 使用本地提交数+1 估算
+    if ([string]::IsNullOrEmpty($remoteCommits)) {
         try {
             $localCommits = git -C $SCRIPT_DIR rev-list --count HEAD 2>$null
             if ($localCommits) {
-                return "$versionBase.$([int]$localCommits + 1)"
+                $remoteCommits = [int]$localCommits + 1
             }
         } catch {
             # 忽略
         }
+    }
+
+    if ($remoteCommits -and $remoteCommits -gt 0) {
+        return "$versionBase.$remoteCommits"
     }
 
     # 最后降级：返回 null

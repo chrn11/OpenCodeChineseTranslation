@@ -224,19 +224,32 @@ record_check_time() {
 
 # 获取远程最新版本
 get_remote_version() {
-    # 提取 version_base
     local version_base="2.0"
 
-    # 获取远程仓库提交数（通过 GitHub API）
-    local remote_commits=$(curl -fsSL --max-time 5 "https://api.github.com/repos/1186258278/OpenCodeChineseTranslation/commits?per_page=1" 2>/dev/null | grep -oP '(?<="total":)\d+' | head -1)
+    # 方法1: 从远程仓库 git 获取提交数
+    local remote_commits=""
+    if has_cmd git; then
+        # 获取远程默认分支的最新提交
+        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        local repo_root="$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null)"
 
-    # 备用方法：获取最新 commit 的 SHA
+        if [ -n "$repo_root" ]; then
+            # 先 fetch 远程信息
+            git -C "$repo_root" fetch --quiet origin 2>/dev/null
+
+            # 获取远程提交数
+            remote_commits=$(git -C "$repo_root" rev-list --count origin/main 2>/dev/null)
+            if [ -z "$remote_commits" ]; then
+                remote_commits=$(git -C "$repo_root" rev-list --count origin/master 2>/dev/null)
+            fi
+        fi
+    fi
+
+    # 方法2: 如果 git 方法失败，使用本地+1 估算
     if [ -z "$remote_commits" ]; then
-        # 无法获取精确提交数，使用本地提交数+1 作为估算
         local local_commits=$(git rev-list --count HEAD 2>/dev/null)
         if [ -n "$local_commits" ]; then
-            echo "${version_base}.$((local_commits + 1))"
-            return 0
+            remote_commits=$((local_commits + 1))
         fi
     fi
 
