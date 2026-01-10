@@ -329,9 +329,12 @@ EOF
     rm -f "$new_script"
 
     print_color "${GREEN}" "  ✓ 更新成功! v${VERSION} → v${remote_version}"
+
+    # 自动刷新 hash
+    hash -r 2>/dev/null
+
     echo ""
-    print_color "${YELLOW}" "  请运行以下命令使更新生效:"
-    print_color "${WHITE}" "    hash -r && codes --version"
+    print_color "${GREEN}" "  ✓ 更新已生效"
     echo ""
 
     # 清理备份
@@ -629,8 +632,8 @@ install_coding_helper() {
 
     # 检查是否已安装
     if [ -n "$npm_bin" ] && { [ -f "$npm_bin/coding-helper" ] || [ -f "$npm_bin/chelper" ]; }; then
-        print_color "${YELLOW}" "  ⊙ coding-helper 已安装"
-        print_color "${DARK_GRAY}" "  ! 请运行: export PATH=\"$npm_bin:\$PATH\""
+        print_color "${GREEN}" "  ✓ coding-helper 已安装"
+        export PATH="$npm_bin:$PATH"
         return 0
     fi
 
@@ -642,7 +645,8 @@ install_coding_helper() {
 
     if [ -n "$npm_bin" ] && { [ -f "$npm_bin/coding-helper" ] || [ -f "$npm_bin/chelper" ]; }; then
         print_color "${GREEN}" "  ✓ coding-helper 安装成功"
-        print_color "${YELLOW}" "  ! 请运行: export PATH=\"$npm_bin:\$PATH\""
+        export PATH="$npm_bin:$PATH"
+        print_color "${GREEN}" "  ✓ PATH 已自动更新"
         return 0
     fi
 
@@ -655,7 +659,8 @@ install_coding_helper() {
 
     if [ -n "$npm_bin" ] && { [ -f "$npm_bin/coding-helper" ] || [ -f "$npm_bin/chelper" ]; }; then
         print_color "${GREEN}" "  ✓ coding-helper 安装成功"
-        print_color "${YELLOW}" "  ! 请运行: export PATH=\"$npm_bin:\$PATH\""
+        export PATH="$npm_bin:$PATH"
+        print_color "${GREEN}" "  ✓ PATH 已自动更新"
         return 0
     fi
 
@@ -785,7 +790,8 @@ install_claudecode() {
     # 验证安装
     if [ -n "$npm_bin" ] && [ -x "$npm_bin/claude" ]; then
         print_color "${GREEN}" "  ✓ Claude Code 安装成功！"
-        print_color "${YELLOW}" "  ! 请运行: export PATH=\"$npm_bin:\$PATH\""
+        export PATH="$npm_bin:$PATH"
+        print_color "${GREEN}" "  ✓ PATH 已自动更新"
         echo ""
         print_color "${CYAN}" "  使用方法:"
         echo "    claude chat              # 启动对话"
@@ -1167,6 +1173,10 @@ get_shell_rc() {
 
 # 永久写入环境变量到 shell 配置文件
 make_permanent() {
+    # 先加载环境，确保能检测到 npm
+    load_nvm
+    load_bun
+
     local rc_file=$(get_shell_rc)
     local marker_start="# >>> OpenCode Codes Config Start >>>"
     local marker_end="# <<< OpenCode Codes Config End <<<"
@@ -1325,14 +1335,7 @@ cmd_env_permanent() {
     print_separator
     echo ""
 
-    if make_permanent; then
-        # 自动加载环境变量到当前会话
-        echo ""
-        print_color "${CYAN}" "  → 正在加载环境变量到当前会话..."
-        load_nvm
-        load_bun
-        print_color "${GREEN}" "  ✓ 加载完成"
-    fi
+    make_permanent
 
     echo ""
 }
