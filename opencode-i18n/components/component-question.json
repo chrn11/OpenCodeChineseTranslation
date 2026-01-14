@@ -5,13 +5,9 @@
     "placeholder=\"Type your own answer\"": "placeholder=\"输入你自己的答案\"",
     ">Confirm</": ">确认</",
     ">Review</": ">审查</",
-    "function reject()": "function 关闭()",
-    "\" (select all that apply)"": "\" (全选所有适用的)\"",
-    "\"not answered\"": "\"未回答\"",
-    "Type your own answer": "输入你自己的答案",
-    "select": "选择",
-    "toggle": "切换",
-    "submit": "提交"
+    " (select all that apply)": " (全选所有适用的)",
+    "(not answered)": "(未回答)",
+    "Type your own answer": "输入你自己的答案"
   },
-  "note": "需要恢复纯净后重新应用汉化，当前源文件处于部分汉化状态"
+  "note": "不翻译 function 名称（submit/dismiss 等），只翻译用户可见文本"
 }

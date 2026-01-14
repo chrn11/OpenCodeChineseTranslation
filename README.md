@@ -2,7 +2,8 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg)](https://microsoft.com/PowerShell)
-[![Codes](https://img.shields.io/badge/codes-v2.0-cyan.svg)](https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation)
+[![Version](https://img.shields.io/badge/i18n-v5.6-green.svg)](opencode-i18n)
+[![AI](https://img.shields.io/badge/AI%20%E7%BB%B4%E6%8A%A4-purple.svg)](docs/AI_MAINTENANCE.md)
 
 [中文](#中文文档) | [English](#english-documentation)
 
@@ -21,6 +22,12 @@
   <img src="docs/0.png" alt="OpenCode 主界面" width="800">
   <img src="docs/1.png" alt="Plan 模式" width="800">
   <img src="docs/2.png" alt="AI 对话" width="800">
+</p>
+
+<!-- 汉化效果展示 -->
+<p align="center">
+  <img src="docs/3.png" alt="MCP 服务器汉化" width="800">
+  <img src="docs/4.png" alt="状态对话框汉化" width="800">
 </p>
 
 **核心功能：**

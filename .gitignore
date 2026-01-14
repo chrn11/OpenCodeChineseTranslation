@@ -7,6 +7,7 @@ node_modules/
 # Build outputs
 # ====================
 dist/
+bin/
 opencode.exe
 *.exe
 *.log
@@ -73,4 +74,14 @@ opencode-zh-CN/
 # ====================
 # init.ps1 备用下载产生的临时压缩包
 opencode-main.zip
-*.zip
+
+# ====================
+# Release builds (pre-compiled binaries)
+# ====================
+releases/
+
+.claude/
+
+openspec/
+
+.worktrees/

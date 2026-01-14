@@ -1,10 +1,6 @@
 {
   "file": "src/cli/cmd/tui/routes/session/sidebar.tsx",
-  "description": "侧边栏",
-  "replacements": {
-    "} active": "} 个活跃",
-    " error${": " 错误${",
-    "\"s\" : \"": "\"\" : \""
-  },
-  "note": "匹配原始英文源文件，需要在恢复纯净后应用汉化"
+  "description": "侧边栏 (已废弃 - 内容已移至 routes/route-sidebar.json)",
+  "note": "此文件的翻译已全部移至 routes/route-sidebar.json，此文件保留仅为兼容旧版本",
+  "replacements": {}
 }

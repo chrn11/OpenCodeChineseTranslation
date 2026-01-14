@@ -1,10 +1,10 @@
 # ========================================
-# OpenCode 中文汉化版 - 管理工具 v5.5
+# OpenCode 中文汉化版 - 管理工具 v5.6
 # ========================================
 
 # 动态版本号（基于 git 提交数）
 function Get-ScriptVersion {
-    $versionBase = "5.5"
+    $versionBase = "5.6"
 
     # 尝试从 git 获取提交数
     $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { "." }
@@ -365,7 +365,7 @@ function Set-UpdateCheckTime {
 }
 
 function Get-RemoteScriptVersion {
-    $versionBase = "5.5"
+    $versionBase = "5.6"
     $remoteCommits = $null
 
     # 方法1: 通过 Gitee 获取提交数（使用 ls-remote）
@@ -546,7 +546,7 @@ function Show-Menu {
     Write-Host "   │" -ForegroundColor Cyan -NoNewline
     Write-Host "   [1]" -ForegroundColor Green -NoNewline
     Write-Host " 一键汉化+部署    " -ForegroundColor White -NoNewline
-    Write-Host "→ 拉取 → 汉化 → 编译 → 部署" -ForegroundColor DarkGray -NoNewline
+    Write-Host "→ 拉取 → 汉化 → 部署（直接运行源码）" -ForegroundColor DarkGray -NoNewline
     Write-Host "                    │" -ForegroundColor Cyan
     Write-Host "   │" -ForegroundColor Cyan -NoNewline
     Write-Host "   [2]" -ForegroundColor Green -NoNewline
@@ -603,6 +603,16 @@ function Show-Menu {
     Write-Host "   [7]" -ForegroundColor Magenta -NoNewline
     Write-Host " 高级菜单    " -ForegroundColor White -NoNewline
     Write-Host "→ 拉取/编译/恢复/清理/启动等专业功能" -ForegroundColor DarkGray -NoNewline
+    Write-Host "│" -ForegroundColor Cyan
+    Write-Host "   │" -ForegroundColor Cyan -NoNewline
+    Write-Host "   [8]" -ForegroundColor Green -NoNewline
+    Write-Host " 本地部署       " -ForegroundColor White -NoNewline
+    Write-Host "→ 创建 opencode.cmd（直接运行源码，无需编译）" -ForegroundColor DarkGray -NoNewline
+    Write-Host "│" -ForegroundColor Cyan
+    Write-Host "   │" -ForegroundColor Cyan -NoNewline
+    Write-Host "   [9]" -ForegroundColor Green -NoNewline
+    Write-Host " 一键编译三端 " -ForegroundColor White -NoNewline
+    Write-Host "→ Windows/Linux/macOS 全平台打包" -ForegroundColor DarkGray -NoNewline
     Write-Host "│" -ForegroundColor Cyan
     Write-Host "   │" -ForegroundColor Cyan -NoNewline
     Write-Host "   [R]" -ForegroundColor Magenta -NoNewline
@@ -696,10 +706,12 @@ function Show-AdvancedMenu {
     Write-Host "[S]" -ForegroundColor DarkGray -NoNewline
     Write-Host " 恢复脚本      " -ForegroundColor White -NoNewline
     Write-Host "[H]" -ForegroundColor DarkGray -NoNewline
-    Write-Host " 启动 OpenCode" -ForegroundColor White -NoNewline
+    Write-Host " 启动程序      " -ForegroundColor White -NoNewline
+    Write-Host "[P]" -ForegroundColor Green -NoNewline
+    Write-Host " 打包发布" -ForegroundColor White -NoNewline
     Write-Host "    │" -ForegroundColor Cyan
     Write-Host "   │" -ForegroundColor Cyan -NoNewline
-    Write-Host "      查看提交记录      恢复脚本本身      运行汉化版       │" -ForegroundColor DarkGray -NoNewline
+    Write-Host "      查看提交记录      恢复脚本本身      运行汉化版      编译三端      │" -ForegroundColor DarkGray -NoNewline
     Write-Host ""
     Write-Host "   │" -ForegroundColor Cyan
     Write-Host "   └───────────────────────────────────────────────────────┘" -ForegroundColor Cyan
@@ -1990,44 +2002,38 @@ function Show-VersionInfo {
                 $success = $pullResult.Success
             }
 
-            # 恢复汉化补丁（pop 失败则重新应用汉化）
+            # 丢弃旧汉化，重新应用最新汉化配置
             if ($hasLocalChanges -and $stashSuccess -and $success) {
-                Write-Host "   → 恢复汉化补丁..." -ForegroundColor Yellow
+                Write-Host "   → 丢弃旧汉化，重新应用最新汉化..." -ForegroundColor Yellow
                 $stashList = git stash list 2>&1
                 $stashName = $stashList | Select-String "opencode-i18n-auto-stash" | Select-Object -First 1
                 if ($stashName) {
                     $stashIndex = ($stashName.ToString() -split ":")[0].Trim()
-                    $popOutput = git stash pop "$stashIndex" 2>&1
-                    if ($LASTEXITCODE -ne 0) {
-                        # pop 失败（有冲突），自动解决冲突
-                        Write-Host "   → 检测到冲突，自动解决..." -ForegroundColor Yellow
-                        git stash drop "$stashIndex" 2>&1 | Out-Null
+                    # 直接丢弃 stash，不恢复旧汉化
+                    git stash drop "$stashIndex" 2>&1 | Out-Null
+                }
 
-                        # 调用冲突解决函数
-                        $conflictResolved = Resolve-GitConflict
-                        if ($conflictResolved) {
-                            Write-Host "   → 冲突已自动解决，需要重新应用汉化" -ForegroundColor Green
-                            Write-Host "   → 请运行 [2] 应用汉化 重新翻译" -ForegroundColor Cyan
-                        } else {
-                            Write-Host "   → 自动解决冲突失败，请手动处理" -ForegroundColor Red
-                        }
-                    } else {
-                        # pop 成功，检查是否有残留冲突
-                        $conflictInfo = Test-GitConflict
-                        if ($conflictInfo.HasConflict) {
-                            Write-Host "   → 发现残留冲突，自动解决..." -ForegroundColor Yellow
-                            $null = Resolve-GitConflict
-                        }
-                    }
+                # 自动重新应用汉化
+                Write-Host "   → 自动应用汉化..." -ForegroundColor Cyan
+                $autoI18nResult = & node (Join-Path $PROJECT_DIR "scripts\opencode-linux\lib\i18n.js") 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "   → 汉化已应用" -ForegroundColor Green
+                } else {
+                    Write-Host "   → 自动汉化失败，请运行 [2] 应用汉化" -ForegroundColor Yellow
                 }
             } elseif ($hasLocalChanges -and !$stashSuccess) {
-                # stash 失败但原修改还在，检查是否有冲突
-                $conflictInfo = Test-GitConflict
-                if ($conflictInfo.HasConflict) {
-                    Write-Host "   → 检测到残留冲突，自动解决..." -ForegroundColor Yellow
-                    $null = Resolve-GitConflict
+                # stash 失败，直接重置并应用汉化
+                Write-Host "   → 重置源码并重新汉化..." -ForegroundColor Yellow
+                git restore --worktree --source=HEAD -- . 2>&1 | Out-Null
+                git clean -fd 2>&1 | Out-Null
+
+                # 自动重新应用汉化
+                Write-Host "   → 自动应用汉化..." -ForegroundColor Cyan
+                $autoI18nResult = & node (Join-Path $PROJECT_DIR "scripts\opencode-linux\lib\i18n.js") 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "   → 汉化已应用" -ForegroundColor Green
                 } else {
-                    Write-Host "   → 汉化保留在源码目录中" -ForegroundColor Yellow
+                    Write-Host "   → 自动汉化失败，请运行 [2] 应用汉化" -ForegroundColor Yellow
                 }
             }
 
@@ -2062,7 +2068,7 @@ function Show-VersionInfo {
             if ($success) {
                 Write-StepMessage "更新成功！" "SUCCESS"
                 Write-Output ""
-                Write-ColorOutput Yellow "   建议：运行 [2] 应用汉化 重新翻译"
+                Write-ColorOutput Green "   ✓ 汉化已自动应用"
             } else {
                 Write-StepMessage "更新失败" "ERROR"
                 Write-Output "   $($pullResult.Output)"
@@ -2974,8 +2980,20 @@ function Apply-SinglePatch {
 
     foreach ($key in $Replacements.Keys) {
         $originalContent = $content
-        # 使用字符串替换，不使用正则（精确匹配）
-        $content = $content.Replace($key, $Replacements[$key])
+
+        # 判断是否为简单单词（只包含字母和数字）
+        $isSimpleWord = $key -match '^[a-zA-Z0-9]+$'
+
+        if ($isSimpleWord) {
+            # 简单单词使用正则表达式单词边界，避免误翻译代码标识符
+            # 例如: "Status" 不会匹配 "DialogStatus" 中的 "Status"
+            $pattern = [regex]::Escape($key)
+            $content = $content -replace "\b$pattern\b", $Replacements[$key]
+        } else {
+            # 复杂模式（含特殊字符）使用普通字符串替换
+            $content = $content.Replace($key, $Replacements[$key])
+        }
+
         if ($content -ne $originalContent) {
             $count++
         }
@@ -3437,6 +3455,15 @@ function Apply-Patches {
     Show-Separator
     Write-Host ""
 
+    # 步骤 1: 恢复原始文件（防止旧汉化污染）
+    Write-StepMessage "恢复原始文件..." "INFO"
+    Push-Location $SRC_DIR
+    $null = git checkout -- packages/opencode/src/cli/cmd/tui/ 2>&1
+    $null = git clean -fd packages/opencode/src/cli/cmd/tui/ 2>&1
+    Pop-Location
+    Write-ColorOutput Green "✓ 原始文件已恢复！"
+    Write-Host ""
+
     if (!(Test-Path $PACKAGE_DIR)) {
         Write-StepMessage "包目录不存在: $PACKAGE_DIR" "ERROR"
         Read-Host "按回车键继续"
@@ -3743,11 +3770,10 @@ function Invoke-OneClickFull {
     Write-Output "  2. 恢复原始文件 (防止旧汉化污染)"
     Write-Output "  3. 应用所有汉化补丁"
     Write-Output "  4. 关闭现有进程"
-    Write-Output "  5. 编译程序"
-    Write-Output "  6. 复制文件到输出目录"
-    Write-Output "  7. 替换全局版本 (opencode 命令)"
+    Write-Output "  5. 安装依赖 (首次运行需要)"
+    Write-Output "  6. 编译项目 (生成 opencode.exe)"
+    Write-Output "  7. 部署二进制文件"
     Write-Output "  8. 验证汉化结果"
-    Write-Output "  9. 更新语言包版本 (验证通过时)"
     Write-Output ""
 
     Write-Output ""
@@ -3757,7 +3783,7 @@ function Invoke-OneClickFull {
     $stepNum = 1
     if ($versionInfo.NeedsUpdate) {
         Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        Write-ColorOutput Cyan "步骤 1/9: 拉取最新代码"
+        Write-ColorOutput Cyan "步骤 1/8: 拉取最新代码"
         Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         Write-Output ""
 
@@ -3919,44 +3945,38 @@ function Invoke-OneClickFull {
                 $success = $pullResult.Success
             }
 
-            # 恢复汉化补丁（pop 失败则重新应用汉化）
+            # 丢弃旧汉化，重新应用最新汉化配置
             if ($hasLocalChanges -and $stashSuccess -and $success) {
-                Write-Host "   → 恢复汉化补丁..." -ForegroundColor Yellow
+                Write-Host "   → 丢弃旧汉化，重新应用最新汉化..." -ForegroundColor Yellow
                 $stashList = git stash list 2>&1
                 $stashName = $stashList | Select-String "opencode-i18n-auto-stash" | Select-Object -First 1
                 if ($stashName) {
                     $stashIndex = ($stashName.ToString() -split ":")[0].Trim()
-                    $popOutput = git stash pop "$stashIndex" 2>&1
-                    if ($LASTEXITCODE -ne 0) {
-                        # pop 失败（有冲突），自动解决冲突
-                        Write-Host "   → 检测到冲突，自动解决..." -ForegroundColor Yellow
-                        git stash drop "$stashIndex" 2>&1 | Out-Null
+                    # 直接丢弃 stash，不恢复旧汉化
+                    git stash drop "$stashIndex" 2>&1 | Out-Null
+                }
 
-                        # 调用冲突解决函数
-                        $conflictResolved = Resolve-GitConflict
-                        if ($conflictResolved) {
-                            Write-Host "   → 冲突已自动解决，需要重新应用汉化" -ForegroundColor Green
-                            Write-Host "   → 请运行 [2] 应用汉化 重新翻译" -ForegroundColor Cyan
-                        } else {
-                            Write-Host "   → 自动解决冲突失败，请手动处理" -ForegroundColor Red
-                        }
-                    } else {
-                        # pop 成功，检查是否有残留冲突
-                        $conflictInfo = Test-GitConflict
-                        if ($conflictInfo.HasConflict) {
-                            Write-Host "   → 发现残留冲突，自动解决..." -ForegroundColor Yellow
-                            $null = Resolve-GitConflict
-                        }
-                    }
+                # 自动重新应用汉化
+                Write-Host "   → 自动应用汉化..." -ForegroundColor Cyan
+                $autoI18nResult = & node (Join-Path $PROJECT_DIR "scripts\opencode-linux\lib\i18n.js") 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "   → 汉化已应用" -ForegroundColor Green
+                } else {
+                    Write-Host "   → 自动汉化失败，请运行 [2] 应用汉化" -ForegroundColor Yellow
                 }
             } elseif ($hasLocalChanges -and !$stashSuccess) {
-                # stash 失败但原修改还在，检查是否有冲突
-                $conflictInfo = Test-GitConflict
-                if ($conflictInfo.HasConflict) {
-                    Write-Host "   → 检测到残留冲突，自动解决..." -ForegroundColor Yellow
-                    $null = Resolve-GitConflict
+                # stash 失败，直接重置并应用汉化
+                Write-Host "   → 重置源码并重新汉化..." -ForegroundColor Yellow
+                git restore --worktree --source=HEAD -- . 2>&1 | Out-Null
+                git clean -fd 2>&1 | Out-Null
+
+                # 自动重新应用汉化
+                Write-Host "   → 自动应用汉化..." -ForegroundColor Cyan
+                $autoI18nResult = & node (Join-Path $PROJECT_DIR "scripts\opencode-linux\lib\i18n.js") 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "   → 汉化已应用" -ForegroundColor Green
                 } else {
-                    Write-Host "   → 汉化保留在源码目录中" -ForegroundColor Yellow
+                    Write-Host "   → 自动汉化失败，请运行 [2] 应用汉化" -ForegroundColor Yellow
                 }
             }
 
@@ -4014,7 +4034,7 @@ function Invoke-OneClickFull {
         }
     } else {
         Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        Write-ColorOutput Green "步骤 1/9: 跳过拉取 (已是最新版本)"
+        Write-ColorOutput Green "步骤 1/8: 跳过拉取 (已是最新版本)"
         Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         Write-Output ""
     }
@@ -4022,7 +4042,7 @@ function Invoke-OneClickFull {
     Write-Output ""
 
     Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    Write-ColorOutput Cyan "步骤 2/9: 恢复原始文件"
+    Write-ColorOutput Cyan "步骤 2/8: 恢复原始文件"
     Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     Write-Output ""
 
@@ -4035,7 +4055,7 @@ function Invoke-OneClickFull {
     Write-Output ""
 
     Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    Write-ColorOutput Cyan "步骤 3/9: 应用汉化补丁"
+    Write-ColorOutput Cyan "步骤 3/8: 应用汉化补丁"
     Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     Write-Output ""
 
@@ -4052,7 +4072,7 @@ function Invoke-OneClickFull {
     Write-Output ""
 
     Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    Write-ColorOutput Cyan "步骤 4/9: 关闭现有进程"
+    Write-ColorOutput Cyan "步骤 4/8: 关闭现有进程"
     Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     Write-Output ""
 
@@ -4064,7 +4084,7 @@ function Invoke-OneClickFull {
     Write-Output ""
 
     Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    Write-ColorOutput Cyan "步骤 5/9: 编译程序"
+    Write-ColorOutput Cyan "步骤 5/8: 安装依赖（首次运行需要，后续将自动复用缓存）"
     Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     Write-Output ""
 
@@ -4078,82 +4098,90 @@ function Invoke-OneClickFull {
     Write-Output "   Bun 版本: $bunVersion"
     Write-Output ""
 
-    Write-ColorOutput Yellow "执行编译 (可能需要几分钟)..."
-    Write-Output ""
+    # 检查是否需要安装依赖
+    $nodeModulesExists = Test-Path "$SRC_DIR\node_modules"
+    $packageLockExists = Test-Path "$SRC_DIR\bun.lockb"
 
-    # 调用统一的编译函数（包含自动修复逻辑）
-    $buildSuccess = Build-Project -Quiet
+    if (!$nodeModulesExists -or !$packageLockExists) {
+        Write-ColorOutput Yellow "正在安装依赖（首次运行可能需要几分钟）..."
+        Push-Location $SRC_DIR
+        $installOutput = bun install 2>&1
+        $installSuccess = ($LASTEXITCODE -eq 0)
+        Pop-Location
 
-    if (!$buildSuccess) {
-        Write-ColorOutput Red "编译失败，流程终止"
-        Read-Host "按回车键继续"
-        return
-    }
-
-    Write-ColorOutput Green "✓ 编译完成！"
-    Write-Output ""
-
-    Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    Write-ColorOutput Cyan "步骤 6/9: 复制文件到输出目录"
-    Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    Write-Output ""
-
-    if (!(Test-Path $OUT_DIR)) {
-        New-Item -ItemType Directory -Path $OUT_DIR | Out-Null
-    }
-
-    $exeSource = "$PACKAGE_DIR\dist\opencode-windows-x64\bin\opencode.exe"
-    $exeDest = "$OUT_DIR\opencode.exe"
-
-    if (!(Test-Path $exeSource)) {
-        Write-ColorOutput Red "[错误] 编译产物不存在: $exeSource"
-        Read-Host "按回车键继续"
-        return
-    }
-
-    Copy-Item $exeSource $exeDest -Force
-
-    $fileInfo = Get-Item $exeDest
-    $sizeInMB = [math]::Round($fileInfo.Length / 1MB, 2)
-
-    Write-ColorOutput Green "文件已复制！"
-    Write-Output ""
-
-    Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    Write-ColorOutput Cyan "步骤 7/9: 替换全局版本"
-    Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    Write-Output ""
-
-    $globalReplaced = $false
-    $globalCmd = Get-Command opencode -ErrorAction SilentlyContinue
-
-    if ($globalCmd) {
-        $globalPath = $globalCmd.Source
-        Write-Output "检测到全局安装: $globalPath"
-        Write-Output ""
-
-        if ($globalPath -like "*npm*" -or $globalPath -like "*bun*") {
-            Write-ColorOutput Yellow "将汉化版复制到全局目录..."
-            Copy-Item $exeDest $globalPath -Force
-            Write-ColorOutput Green "全局版本已替换！"
-            Write-Output ""
-            Write-ColorOutput Green "现在 'opencode' 命令将直接使用汉化版"
-            $globalReplaced = $true
+        if ($installSuccess) {
+            Write-ColorOutput Green "✓ 依赖安装完成！"
         } else {
-            Write-ColorOutput Yellow "将汉化版复制到: $globalPath"
-            Copy-Item $exeDest $globalPath -Force
-            Write-ColorOutput Green "完成！"
-            $globalReplaced = $true
+            Write-ColorOutput Red "[错误] 依赖安装失败"
+            Write-Host "$installOutput" -ForegroundColor DarkGray
+            Read-Host "按回车键继续"
+            return
         }
     } else {
-        Write-ColorOutput Yellow "未检测到全局 opencode 安装"
-        Write-Output "运行 'npm install -g opencode-windows-x64' 后可自动替换"
+        Write-ColorOutput Green "✓ 依赖已存在，跳过安装"
     }
-
     Write-Output ""
 
     Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    Write-ColorOutput Cyan "步骤 8/9: 验证汉化结果"
+    Write-ColorOutput Cyan "步骤 6/8: 编译项目（生成 opencode.exe）"
+    Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    Write-Output ""
+
+    Write-ColorOutput Yellow "正在编译（首次需要几分钟，请耐心等待）..."
+    Push-Location $SRC_DIR
+    $buildOutput = bun run --cwd packages/opencode script/build.ts --single 2>&1
+    $buildSuccess = ($LASTEXITCODE -eq 0)
+    Pop-Location
+
+    if ($buildSuccess) {
+        Write-ColorOutput Green "✓ 编译完成！"
+    } else {
+        Write-ColorOutput Red "[错误] 编译失败"
+        Write-Host "$buildOutput" -ForegroundColor DarkGray
+        Read-Host "按回车键继续"
+        return
+    }
+    Write-Output ""
+
+    Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    Write-ColorOutput Cyan "步骤 7/8: 部署二进制文件"
+    Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    Write-Output ""
+
+    # 确保 npm 目录存在
+    $NPM_DIR = "$env:APPDATA\npm"
+    if (!(Test-Path $NPM_DIR)) {
+        New-Item -ItemType Directory -Path $NPM_DIR -Force | Out-Null
+    }
+
+    # 编译后的二进制文件路径
+    $BINARY_EXE = "$SRC_DIR\packages\opencode\dist\opencode-windows-x64\bin\opencode.exe"
+
+    if (!(Test-Path $BINARY_EXE)) {
+        Write-ColorOutput Red "[错误] 编译后的文件不存在: $BINARY_EXE"
+        Read-Host "按回车键继续"
+        return
+    }
+
+    # 复制 exe 到 npm 目录
+    $TARGET_EXE = Join-Path $NPM_DIR "opencode.exe"
+    Copy-Item -Path $BINARY_EXE -Destination $TARGET_EXE -Force
+    Write-ColorOutput Green "✓ opencode.exe 已复制到: $TARGET_EXE"
+
+    # 创建 cmd 包装器
+    $CMD_FILE = Join-Path $NPM_DIR "opencode.cmd"
+    $cmdContent = @"
+@ECHO off
+"%~dp0opencode.exe" %*
+"@
+    $cmdContent | Out-File -FilePath $CMD_FILE -Encoding ASCII -Force
+    Write-ColorOutput Green "✓ opencode.cmd 已创建到: $CMD_FILE"
+    Write-Output ""
+    Write-ColorOutput Green "现在 'opencode' 命令将运行编译后的二进制文件"
+    Write-Output ""
+
+    Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    Write-ColorOutput Cyan "步骤 8/8: 验证汉化结果"
     Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     Write-Output ""
 
@@ -4177,7 +4205,7 @@ function Invoke-OneClickFull {
     # 验证通过后自动更新语言包版本
     if ($validationPassed) {
         Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        Write-ColorOutput Cyan "步骤 9/9: 更新语言包版本"
+        Write-ColorOutput Cyan "附加步骤: 更新语言包版本"
         Write-ColorOutput Cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         Write-Output ""
         Update-SupportedCommit
@@ -4193,19 +4221,13 @@ function Invoke-OneClickFull {
     Write-ColorOutput Green "║          一键汉化+部署完成！                               ║"
     Write-ColorOutput Green "╚════════════════════════════════════════════════════════════╝"
     Write-Output ""
-    Write-Output "   输出位置: $exeDest"
-    Write-Output "   文件大小: $sizeInMB MB"
+    Write-Output "   二进制文件: $TARGET_EXE"
+    Write-Output "   源码目录: $SRC_DIR"
     Write-Output "   总耗时: $($stopwatch.Elapsed.ToString('mm\:ss'))"
 
-    if ($globalReplaced) {
-        Write-Output ""
-        Write-ColorOutput Green "   √ 全局版本已替换"
-        Write-ColorOutput Yellow "   直接运行 'opencode' 即可启动汉化版"
-    } else {
-        Write-Output ""
-        Write-ColorOutput Yellow "   运行 .\opencode.exe 启动汉化版"
-        Write-ColorOutput Yellow "   或运行 [10] 替换全局版本"
-    }
+    Write-Output ""
+    Write-ColorOutput Green "   √ opencode.exe 已部署"
+    Write-ColorOutput Yellow "   直接运行 'opencode' 即可启动汉化版"
 
     if ($validationPassed) {
         Write-ColorOutput Green "   √ 汉化验证通过"
@@ -4665,6 +4687,222 @@ function Launch-OpenCode {
     Start-Process $exePath
     Write-ColorOutput Green "已启动！"
     Start-Sleep -Seconds 1
+}
+
+function Invoke-Release {
+    <#
+    .SYNOPSIS
+        打包发布 - 编译三端并打包到 releases 目录
+    #>
+    Write-Header
+    Show-Separator
+    Write-Output "   打包发布 - 编译三端版本"
+    Show-Separator
+    Write-Output ""
+
+    # 检查编译产物是否存在
+    $distDir = "$PROJECT_DIR\opencode-zh-CN\packages\opencode\dist"
+    if (!(Test-Path $distDir)) {
+        Write-ColorOutput Red "编译产物不存在，请先运行 [3] 编译程序"
+        Read-Host "按回车键继续"
+        return
+    }
+
+    Write-ColorOutput Cyan "正在打包三端版本..."
+    Write-Output ""
+
+    # 运行 release.ps1
+    $releaseScript = "$PROJECT_DIR\scripts\release.ps1"
+    if (Test-Path $releaseScript) {
+        & $releaseScript
+    } else {
+        Write-ColorOutput Red "打包脚本不存在: $releaseScript"
+    }
+
+    Write-Output ""
+    Read-Host "按回车键继续"
+}
+
+function Invoke-LocalBuild {
+    <#
+    .SYNOPSIS
+        本地部署 - 创建 opencode.cmd 调用 bun 运行源码（无需编译）
+    #>
+    Write-Header
+    Show-Separator
+    Write-Output "   本地部署 - 直接运行源码模式"
+    Show-Separator
+    Write-Output ""
+
+    Write-ColorOutput Cyan "   流程说明:"
+    Write-Output "     1. 创建 opencode.cmd 到 npm 目录"
+    Write-Output "     2. 使用 bun 直接运行源码（无需编译，启动更快）"
+    Write-Output "     3. 可在任意位置运行 'opencode' 命令"
+    Write-Output ""
+
+    $confirm = Read-Host "是否继续? (Y/n)"
+    if ($confirm -eq "n" -or $confirm -eq "N") {
+        return
+    }
+
+    Write-Output ""
+    Write-ColorOutput Cyan "═══════════════════════════════════════════════════════"
+    Write-ColorOutput Cyan "   开始部署..."
+    Write-ColorOutput Cyan "═══════════════════════════════════════════════════════"
+    Write-Output ""
+
+    # 检查源码目录
+    $SRC_DIR = "$PROJECT_DIR\opencode-zh-CN\packages\opencode"
+    $SRC_INDEX = "$SRC_DIR\src\index.ts"
+
+    if (-not (Test-Path $SRC_INDEX)) {
+        Write-ColorOutput Red "   源码文件不存在: $SRC_INDEX"
+        Write-Output ""
+        Read-Host "按回车键继续"
+        return
+    }
+
+    # 检查 bun
+    $bunVersion = Get-BunVersion
+    if (-not $bunVersion) {
+        Write-ColorOutput Red "   Bun 未安装，无法运行源码"
+        Write-ColorOutput Cyan "   请安装 Bun: https://bun.sh"
+        Write-Output ""
+        Read-Host "按回车键继续"
+        return
+    }
+
+    # 检查依赖
+    Write-ColorOutput Cyan "   检查依赖..."
+    Push-Location $SRC_DIR
+    if (-not (Test-Path "node_modules")) {
+        Write-Output "     安装依赖..."
+        bun install
+    } else {
+        Write-Output "     依赖已安装"
+    }
+    Pop-Location
+    Write-Output ""
+
+    # 确保 npm 目录存在
+    $NPM_DIR = "$env:APPDATA\npm"
+    if (-not (Test-Path $NPM_DIR)) {
+        New-Item -ItemType Directory -Path $NPM_DIR -Force | Out-Null
+    }
+
+    # 创建 opencode.cmd
+    $CMD_FILE = Join-Path $NPM_DIR "opencode.cmd"
+    # 使用根目录作为工作目录，然后通过 --cwd 指定到 packages/opencode
+    $cmdContent = @"
+@ECHO off
+SETLOCAL
+CALL :find_dp0
+
+SET "_prog=bun"
+SET "_WORK_DIR=$SRC_DIR"
+SET "_ENTRY=packages/opencode/src/index.ts"
+
+endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & cd /d "%_WORK_DIR%" & "%_prog%" run "%_ENTRY%" %*
+
+:find_dp0
+SET dp0=%~dp0
+EXIT /b
+"@
+
+    $cmdContent | Out-File -FilePath $CMD_FILE -Encoding ASCII -Force
+
+    Write-ColorOutput Green "   ✓ 已创建 opencode.cmd"
+    Write-Output "     位置: $CMD_FILE"
+    Write-Output ""
+
+    # 测试运行
+    Write-ColorOutput Cyan "   测试 opencode --version..."
+    $versionOutput = & $CMD_FILE "--version" 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-ColorOutput Green "   ✓ 运行成功!"
+        Write-Output "     $versionOutput"
+    } else {
+        Write-ColorOutput Yellow "   ⚠️  运行测试失败，请检查配置"
+    }
+
+    Write-Output ""
+    Write-ColorOutput Green "═══════════════════════════════════════════════════════"
+    Write-ColorOutput Green "   部署完成!"
+    Write-ColorOutput Green "═══════════════════════════════════════════════════════"
+    Write-Output ""
+    Write-ColorOutput Cyan "   现在可以在任意位置运行:"
+    Write-Output "     opencode"
+    Write-Output ""
+    Read-Host "按回车键继续"
+}
+
+function Invoke-Workflow {
+    <#
+    .SYNOPSIS
+        一键编译三端 - 完整工作流: 更新 → 汉化 → 编译 → 打包三端
+    #>
+    Write-Header
+    Show-Separator
+    Write-Output "   一键编译三端 - 完整工作流"
+    Show-Separator
+    Write-Output ""
+
+    Write-ColorOutput Cyan "   工作流包含以下步骤:"
+    Write-Output "     1. 检查编译环境"
+    Write-Output "     2. 更新 OpenCode 源码"
+    Write-Output "     3. 恢复源码到纯净状态"
+    Write-Output "     4. 应用汉化配置"
+    Write-Output "     5. 编译构建"
+    Write-Output "     6. 打包三端 Release (Windows/Linux/macOS)"
+    Write-Output "     7. 部署到本地环境"
+    Write-Output ""
+
+    $confirm = Read-Host "是否继续? (Y/n)"
+    if ($confirm -eq "n" -or $confirm -eq "N") {
+        return
+    }
+
+    Write-Output ""
+    Write-ColorOutput Cyan "═══════════════════════════════════════════════════════"
+    Write-ColorOutput Cyan "   开始执行工作流..."
+    Write-ColorOutput Cyan "═══════════════════════════════════════════════════════"
+    Write-Output ""
+
+    # 运行 workflow.ps1
+    $workflowScript = "$PROJECT_DIR\scripts\workflow.ps1"
+    if (Test-Path $workflowScript) {
+        & $workflowScript
+    } else {
+        Write-ColorOutput Red "工作流脚本不存在: $workflowScript"
+        Write-Output ""
+        Read-Host "按回车键继续"
+        return
+    }
+
+    Write-Output ""
+    Write-ColorOutput Cyan "═══════════════════════════════════════════════════════"
+    Write-ColorOutput Green "   工作流完成！"
+    Write-ColorOutput Cyan "═══════════════════════════════════════════════════════"
+    Write-Output ""
+
+    # 显示 Release 文件位置
+    $releasesDir = "$PROJECT_DIR\releases"
+    if (Test-Path $releasesDir) {
+        Write-ColorOutput Yellow "   Release 文件位置:"
+        Get-ChildItem $releasesDir -Filter "*.exe" -ErrorAction SilentlyContinue | ForEach-Object {
+            $size = [math]::Round($_.Length / 1MB, 2)
+            Write-Output "     - $($_.Name) ($size MB)"
+        }
+        Get-ChildItem $releasesDir -Exclude "*.exe","*.txt","SHA256*" -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.PSIsContainer -eq $false) {
+                $size = [math]::Round($_.Length / 1MB, 2)
+                Write-Output "     - $($_.Name) ($size MB)"
+            }
+        }
+    }
+
+    Write-Output ""
+    Read-Host "按回车键继续"
 }
 
 function Restore-Script {
@@ -5165,6 +5403,8 @@ do {
         "6" { Backup-All }
         "L" { Show-Changelog }
         "l" { Show-Changelog }
+        "8" { Invoke-LocalBuild }
+        "9" { Invoke-Workflow }
         "R" { Restore-CleanMode }
         "r" { Restore-CleanMode }
         "7" {
@@ -5235,6 +5475,8 @@ do {
                     }
                     "L" { Launch-OpenCode }
                     "l" { Launch-OpenCode }
+                    "P" { Invoke-Release }
+                    "p" { Invoke-Release }
                     "S" { Restore-Script }
                     "s" { Restore-Script }
                     "0" { break }

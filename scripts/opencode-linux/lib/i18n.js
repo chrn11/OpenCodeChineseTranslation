@@ -86,9 +86,24 @@ class I18n {
     for (const [find, replace] of Object.entries(config.replacements)) {
       // 也规范化查找字符串中的换行符
       const normalizedFind = find.replace(/\r\n/g, '\n');
-      if (content.includes(normalizedFind)) {
-        content = content.replaceAll(normalizedFind, replace);
-        replaceCount++;
+
+      // 判断是否为简单单词（只包含字母和数字）
+      const isSimpleWord = /^[a-zA-Z0-9]+$/.test(normalizedFind);
+
+      if (isSimpleWord) {
+        // 简单单词使用单词边界，避免误翻译代码标识符
+        // 例如: "Status" 不会匹配 "DialogStatus" 中的 "Status"
+        const wordBoundaryPattern = new RegExp(`\\b${normalizedFind}\\b`, 'g');
+        if (wordBoundaryPattern.test(content)) {
+          content = content.replace(wordBoundaryPattern, replace);
+          replaceCount++;
+        }
+      } else {
+        // 复杂模式（含特殊字符）使用普通替换
+        if (content.includes(normalizedFind)) {
+          content = content.replaceAll(normalizedFind, replace);
+          replaceCount++;
+        }
       }
     }
 

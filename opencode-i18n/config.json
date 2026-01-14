@@ -1,9 +1,9 @@
 ﻿{
-    "version":  "5.4",
+    "version":  "5.6",
     "description":  "OpenCode 中文汉化配置文件（模块化结构）",
-    "lastUpdate": "2026-01-14",
+    "lastUpdate": "2026-01-15",
     "testPassRate":  "100%",
-    "supportedCommit":  "4347a77d89a0b397b2e5aa6165f33313f7fbaf6e",
+    "supportedCommit":  "6b6d6e9e07d120e0f7458af41503270a0be8c424",
     "maintainer":  {
                        "name":  "CodeCreator",
                        "wechat":  "CodeCreator",
@@ -46,7 +46,6 @@
                                        "components/command-panel.json",
                                        "components/component-prompt.json",
                                        "components/component-question.json",
-                                       "components/component-sidebar.json",
                                        "components/inline-tools.json"
                                    ],
                     "common":  [
