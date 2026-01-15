@@ -12,6 +12,10 @@
     "build": "node bin/opencodenpm build",
     "verify": "node bin/opencodenpm verify",
     "full": "node bin/opencodenpm full",
+    "launch": "node bin/opencodenpm launch",
+    "deploy": "node bin/opencodenpm deploy",
+    "helper": "node bin/opencodenpm helper",
+    "package": "node bin/opencodenpm package",
     "env": "node bin/opencodenpm env",
     "config": "node bin/opencodenpm config"
   },

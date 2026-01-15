@@ -14,6 +14,10 @@ const applyCmd = require('../commands/apply.js');
 const buildCmd = require('../commands/build.js');
 const verifyCmd = require('../commands/verify.js');
 const fullCmd = require('../commands/full.js');
+const launchCmd = require('../commands/launch.js');
+const helperCmd = require('../commands/helper.js');
+const packageCmd = require('../commands/package.js');
+const deployCmd = require('../commands/deploy.js');
 
 /**
  * 创建 CLI 应用
@@ -129,6 +133,76 @@ function createCLI() {
       log(`  源码目录: ${getOpencodeDir()}`);
       log(`  汉化目录: ${getI18nDir()}`);
       log(`  输出目录: ${getBinDir()}`);
+    });
+
+  // launch 命令
+  program
+    .command('launch')
+    .alias('start')
+    .description('启动已编译的 OpenCode')
+    .option('-b, --background', '后台启动')
+    .action(async (options) => {
+      try {
+        const result = await launchCmd.run(options);
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // helper 命令
+  program
+    .command('helper')
+    .description('智谱助手 - 安装/启动')
+    .option('-i, --install', '安装智谱助手')
+    .option('-f, --force', '强制重装')
+    .allowUnknownOption(true)
+    .action(async (options) => {
+      try {
+        if (options.install) {
+          const result = await helperCmd.install(options);
+          process.exit(result ? 0 : 1);
+        } else {
+          // 转发其他参数给 coding-helper
+          const args = process.argv.slice(3);
+          await helperCmd.launch(args);
+        }
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // package 命令
+  program
+    .command('package')
+    .alias('pack')
+    .description('打包 Releases (生成分发包)')
+    .option('-p, --platform <platform>', '指定平台 (windows-x64, darwin-arm64, linux-x64)')
+    .option('-a, --all', '打包所有平台')
+    .action(async (options) => {
+      try {
+        const result = await packageCmd.run(options);
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // deploy 命令
+  program
+    .command('deploy')
+    .description('部署 opencode 全局命令到三端')
+    .action(async () => {
+      try {
+        const result = await deployCmd.run();
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
     });
 
   // interactive 命令（默认命令）

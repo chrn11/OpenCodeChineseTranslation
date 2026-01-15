@@ -33,7 +33,7 @@ function getProjectDir() {
     }
     currentDir = path.dirname(currentDir);
   }
-  // 如果找不到，返回 scripts-v2 的父目录
+  // 如果找不到，返回 scripts 的父目录
   return path.dirname(__dirname);
 }
 

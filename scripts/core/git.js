@@ -46,11 +46,30 @@ async function cloneRepo(url, targetPath, options = {}) {
  * 拉取最新代码
  */
 async function pullRepo(repoPath, options = {}) {
-  const { branch = 'main', silent = false } = options;
+  const { branch = null, silent = false } = options;
 
   try {
-    exec('git fetch origin', { cwd: repoPath });
-    exec(`git reset --hard origin/${branch}`, { cwd: repoPath });
+    // 获取当前分支（如果未指定）
+    const currentBranch = branch || getCurrentBranch(repoPath) || 'main';
+
+    // 获取远程跟踪分支
+    let remoteBranch;
+    try {
+      const upstream = exec('git rev-parse --abbrev-ref --symbolic-full-name @{u}', {
+        cwd: repoPath,
+        stdio: 'pipe',
+      }).trim();
+      remoteBranch = upstream;
+    } catch {
+      // 如果没有上游分支，使用 origin/branch
+      remoteBranch = `origin/${currentBranch}`;
+    }
+
+    // 获取远程的所有分支
+    exec('git fetch origin', { cwd: repoPath, stdio: silent ? 'pipe' : 'inherit' });
+
+    // 重置到远程分支
+    exec(`git reset --hard ${remoteBranch}`, { cwd: repoPath, stdio: silent ? 'pipe' : 'inherit' });
 
     if (!silent) success('源码已更新');
     return true;
