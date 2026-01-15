@@ -1,0 +1,147 @@
+/**
+ * CLI 入口模块
+ * 使用 Commander.js 处理命令行参数
+ */
+
+const { Command } = require('commander');
+const { checkEnvironment } = require('./env.js');
+const { step, success, error, log } = require('./colors.js');
+
+// 导入命令
+const updateCmd = require('../commands/update.js');
+const applyCmd = require('../commands/apply.js');
+const buildCmd = require('../commands/build.js');
+const verifyCmd = require('../commands/verify.js');
+const fullCmd = require('../commands/full.js');
+
+/**
+ * 创建 CLI 应用
+ */
+function createCLI() {
+  const program = new Command();
+
+  program
+    .name('opencodenpm')
+    .description('OpenCode 中文汉化管理工具')
+    .version('5.6.0');
+
+  // update 命令
+  program
+    .command('update')
+    .description('更新 OpenCode 源码到最新版本')
+    .option('-f, --force', '强制重新克隆（删除现有目录）')
+    .action(async (options) => {
+      try {
+        const result = await updateCmd.run(options);
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // apply 命令
+  program
+    .command('apply')
+    .description('应用汉化配置到源码')
+    .option('-s, --silent', '静默模式')
+    .action(async (options) => {
+      try {
+        const result = await applyCmd.run(options);
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // build 命令
+  program
+    .command('build')
+    .description('编译构建 OpenCode')
+    .option('-p, --platform <platform>', '目标平台 (windows-x64, darwin-arm64, linux-x64)')
+    .option('--no-deploy', '不部署到本地 bin 目录')
+    .option('-s, --silent', '静默模式')
+    .action(async (options) => {
+      try {
+        const result = await buildCmd.run(options);
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // verify 命令
+  program
+    .command('verify')
+    .description('验证汉化配置和覆盖率')
+    .option('-d, --detailed', '显示详细信息')
+    .action(async (options) => {
+      try {
+        const result = await verifyCmd.run(options);
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // full 命令
+  program
+    .command('full')
+    .description('完整工作流：更新 → 恢复 → 汉化 → 编译')
+    .option('--skip-update', '跳过更新源码')
+    .option('--skip-build', '跳过编译')
+    .action(async (options) => {
+      try {
+        const result = await fullCmd.run(options);
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // env 命令
+  program
+    .command('env')
+    .description('检查编译环境')
+    .action(async () => {
+      try {
+        await checkEnvironment();
+        process.exit(0);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // config 命令
+  program
+    .command('config')
+    .description('显示当前配置')
+    .action(() => {
+      const { getProjectDir, getOpencodeDir, getI18nDir, getBinDir } = require('./utils');
+      log('项目配置:', 'cyan');
+      log(`  项目目录: ${getProjectDir()}`);
+      log(`  源码目录: ${getOpencodeDir()}`);
+      log(`  汉化目录: ${getI18nDir()}`);
+      log(`  输出目录: ${getBinDir()}`);
+    });
+
+  return program;
+}
+
+/**
+ * 运行 CLI
+ */
+function run() {
+  const program = createCLI();
+  program.parseAsync(process.argv).catch((err) => {
+    error(err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { createCLI, run };
