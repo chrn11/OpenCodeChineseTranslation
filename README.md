@@ -19,8 +19,8 @@
 
 <!-- 汉化效果展示 -->
 <p align="center">
-  <img src="docs/1.png" alt="MCP 服务器汉化" width="800">
-  <img src="docs/2.png" alt="状态对话框汉化" width="800">
+  <img src="docs/1-1.png" alt="MCP 服务器汉化" width="800">
+  <img src="docs/2-2.png" alt="状态对话框汉化" width="800">
 </p>
 
 **核心功能：**
