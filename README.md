@@ -16,17 +16,11 @@
 
 **OpenCode 中文汉化版**是对 OpenCode 项目的本地化改造，通过模块化汉化配置和自动化脚本实现完整中文化，降低国内用户使用门槛。
 
-<!-- 截图展示 -->
-<p align="center">
-  <img src="docs/0.png" alt="OpenCode 主界面" width="800">
-  <img src="docs/1.png" alt="Plan 模式" width="800">
-  <img src="docs/2.png" alt="AI 对话" width="800">
-</p>
 
 <!-- 汉化效果展示 -->
 <p align="center">
-  <img src="docs/3.png" alt="MCP 服务器汉化" width="800">
-  <img src="docs/4.png" alt="状态对话框汉化" width="800">
+  <img src="docs/1.png" alt="MCP 服务器汉化" width="800">
+  <img src="docs/2.png" alt="状态对话框汉化" width="800">
 </p>
 
 **核心功能：**
