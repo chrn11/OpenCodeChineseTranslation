@@ -2,25 +2,51 @@
 
 ---
 
+## [6.1] - 2026-01-18
+
+### 文档
+- 更新 README 文档，添加详细使用说明
+- 添加截图：交互式菜单、覆盖率报告、质量检查
+- 详细说明 Antigravity Tools API 反代配置
+- 补充命令参考、项目结构、常见问题
+
+### 改进
+- 重命名截图文件为语义化名称
+- 删除过时的 PowerShell 相关文档
+
+---
+
 ## [6.0] - 2026-01-17
 
 ### 新增
-- AI 自动翻译功能（集成到 apply 命令）
-- 增量翻译：`opencodenpm apply --incremental`
-- 翻译质量检查：`opencodenpm check --quality`
+- **AI 自动翻译**：集成到 `apply` 命令，自动检测并翻译新文本
+- **增量翻译**：`opencodenpm apply --incremental`，仅翻译 git 变更文件
+- **翻译质量检查**：`opencodenpm check --quality`
   - 本地语法检查（引号、花括号、标签匹配）
-  - AI 语义审查
+  - AI 语义审查（抽样 30 条）
   - 自动修复语法问题
-- 交互式菜单优化
+- **交互式菜单优化**：分类展示，支持键盘导航
+- **覆盖率报告**：显示翻译统计和 AI 智能总结
+- **遗漏扫描**：检测未翻译的 UI 文本
 
 ### 改进
 - 翻译格式统一为 `中文 (English)` 双语格式
-- 语法检查支持 `{highlight}...{/highlight}` 标签
+- 语法检查支持 `{highlight}...{/highlight}` 标签检测
 - 检查逻辑排除不完整代码片段的误报
+- Node.js CLI 替代 PowerShell 脚本，跨平台支持
 
 ### 修复
-- 修复 28 处翻译语法问题
-- 修复菜单 stdin 事件监听冲突
+- 修复 28 处翻译语法问题（花括号、标签不匹配）
+- 修复菜单 stdin 事件监听冲突导致的退出问题
+
+### 翻译统计
+- 总计 605 条翻译
+- 对话框：34 文件 / 186 条
+- 组件：16 文件 / 212 条
+- 路由：11 文件 / 149 条
+- 通用：10 文件 / 54 条
+- 上下文：2 文件 / 4 条
+- 质量评分：100/100
 
 ---
 
@@ -28,13 +54,24 @@
 
 历史版本，由原作者 [1186258278](https://github.com/1186258278) 维护。
 
-主要功能：
-- 模块化汉化配置
-- PowerShell 管理脚本
+### 主要功能
+- 模块化汉化配置（JSON 格式）
+- PowerShell 管理脚本（Windows）
 - 基础验证功能
+- 一键汉化 + 部署
+
+### 版本历史
+- **5.2** - 修复汉化配置破坏代码的问题
+- **5.1** - 添加语言包版本适配检测
+- **5.0** - 优化文件标记速度
+- **4.x** - 添加自动代理检测、交互式菜单
+- **3.x** - 一键汉化功能
+- **1.0** - 初始版本
 
 ---
 
 ## 链接
 
-- [问题反馈](https://github.com/1186258278/OpenCodeChineseTranslation/issues)
+- [GitHub 仓库](https://github.com/xiaolajiaoyyds/OpenCodeChineseTranslation)
+- [原作者仓库](https://github.com/1186258278/OpenCodeChineseTranslation)
+- [OpenCode 官方](https://github.com/anomalyco/opencode)
