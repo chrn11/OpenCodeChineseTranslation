@@ -209,17 +209,24 @@ class I18n {
 
     for (const [find, replace] of Object.entries(config.replacements)) {
       const normalizedFind = find.replace(/\r\n/g, '\n');
+      const normalizedReplace = replace.replace(/\r\n/g, '\n');
+      
+      // 防止重复替换：如果内容已经包含翻译结果，跳过
+      if (content.includes(normalizedReplace)) {
+        continue;
+      }
+      
       const isSimpleWord = /^[a-zA-Z0-9]+$/.test(normalizedFind);
 
       if (isSimpleWord) {
         const wordBoundaryPattern = new RegExp(`\\b${normalizedFind}\\b`, 'g');
         if (wordBoundaryPattern.test(content)) {
-          content = content.replace(wordBoundaryPattern, replace);
+          content = content.replace(wordBoundaryPattern, normalizedReplace);
           replaceCount++;
         }
       } else {
         if (content.includes(normalizedFind)) {
-          content = content.replaceAll(normalizedFind, replace);
+          content = content.replaceAll(normalizedFind, normalizedReplace);
           replaceCount++;
         }
       }
