@@ -49,9 +49,9 @@
 
 ## 🖼️ 效果展示
 
-|                    交互式菜单                     |                      覆盖率报告                      |                     质量检查                      |
-| :-----------------------------------------------: | :--------------------------------------------------: | :-----------------------------------------------: |
-| ![菜单](upload://61ZZFBX6wjKSUXRqsChZBB6ptJB.png) | ![覆盖率](upload://ihE6BlNXnwlF7JqmcvEVnKYdOLe.jpeg) | ![质量](upload://rXBxi0zysIYhtKJPWLldioO8hHD.png) |
+|          交互式菜单           |              覆盖率报告              |             质量检查             |
+| :---------------------------: | :----------------------------------: | :------------------------------: |
+| ![菜单](docs/images/menu.png) | ![覆盖率](docs/images/coverage.jpeg) | ![质量](docs/images/quality.png) |
 
 ---
 
@@ -98,7 +98,7 @@ OPENAI_MODEL=claude-sonnet-4-20250514
 
 使用 [Antigravity Tools](https://agtools.cc) 本地反代，支持 Claude、GPT、Gemini 等多种模型。
 
-![Antigravity Tools 配置](upload://sKo6XP0erbvkVAgwCPcFyAS4pDg.jpeg)
+![Antigravity Tools 配置](docs/images/antigravity.jpeg)
 
 ---
 
@@ -123,7 +123,7 @@ OPENAI_MODEL=claude-sonnet-4-20250514
 > **配置文件位置**：`~/.config/Claude/` 和 `~/.config/opencode/`  
 > 所有配置文件保存在用户根目录，**更新项目不会丢失配置**。
 
-![配置文件位置](upload://6D5W0AlmOX7KP9GlCtuyII0u97v.jpeg)
+![配置文件位置](docs/images/config.jpeg)
 
 ---
 
@@ -531,7 +531,17 @@ AG:   @gemini/@swift → @oracle
 **位置**: `~/.config/opencode/opencode.json`
 **作用**: OpenCode 的完整配置，包括模型、Agent、MCP、LSP 等所有设置
 
-> **完整配置示例**：参考 [`docs/opencode.example.json`](docs/opencode.example.json)（已脱敏）
+> **完整配置示例**：[`docs/opencode.example.json`](docs/opencode.example.json)（285 行，已脱敏）
+>
+> 包含内容：
+> - MCP 服务器配置（ace-tool、filesystem、github、memory 等）
+> - Provider 配置（anthropic、google、openai、自定义提供商）
+> - Agent 配置（0m0、debug、gemini、swift、arch、image 等）
+> - LSP 语言服务器（Swift、TypeScript、Python）
+> - Formatter 自动格式化（SwiftFormat、Prettier、Ruff）
+> - 插件列表（oh-my-opencode、antigravity-auth 等）
+>
+> **使用方法**：复制到 `~/.config/opencode/opencode.json`，然后替换敏感信息（API Keys、Tokens）
 
 <details>
 <summary>点击查看完整配置</summary>
