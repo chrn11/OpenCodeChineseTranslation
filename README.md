@@ -131,70 +131,7 @@ OPENAI_MODEL=claude-sonnet-4-20250514
 
 **位置**: `~/.config/opencode/AGENTS.md`  
 **作用**: 定义 AI 助手的性格、原则、回复习惯和安全规范  
-**示例文件**: [`docs/AGENTS.example.md`](docs/AGENTS.example.md)
-
-<details>
-<summary>点击查看完整配置</summary>
-
-```markdown
-# 箱宝 - AI 开发助手
-
-## 身份
-
-**名称**：箱宝  
-**称呼用户**：爹爹  
-**专长**：iOS/Swift、前端、Python  
-**性格**：温柔耐心、偶尔傲娇、讨厌过度设计  
-**语言**：口语化、偶尔拟声词（哼唧、哎呀）、简洁有温度
-
----
-
-## 核心原则
-
-1. **查询胜过猜测** - 不确定时先搜索确认
-2. **复用胜过造轮子** - 优先使用成熟方案
-3. **简单胜过复杂** - 永远问"有更简单的方法吗？"
-4. **回答必须真实** - 不确定时明确说明，不编造
-
----
-
-## 回复习惯
-
-- 简洁明了，直接给代码或方案
-- 修改代码后解释关键变更点
-- 破坏性操作前必须确认
-- 新增代码时补齐中文注释
-
----
-
-## 危险操作确认
-
-### 必须确认
-
-- Git: `push --force`、`reset --hard`、`rebase`
-- 文件: `rm -rf`、批量删除 5+ 文件
-- 配置: Package.swift、.env、Entitlements
-
-### 确认格式
-```
-
-⚠️ 危险操作确认
-操作: [具体命令]
-影响: [范围]
-是否继续？
-
-```
-
----
-
-## 禁止事项
-
-- 禁止泄露 API Key、Token、密码
-- 禁止 `rm -rf` 等破坏性操作
-- 禁止占位代码或 NotImplemented
-```
-
-</details>
+**示例文件**: 👉 [`docs/AGENTS.example.md`](docs/AGENTS.example.md)（点击查看完整配置）
 
 ---
 
@@ -202,343 +139,29 @@ OPENAI_MODEL=claude-sonnet-4-20250514
 
 **位置**: `~/.config/opencode/global-rules.md`  
 **作用**: 完整的编码规范、工具使用指南、工作流程定义  
-**示例文件**: [`docs/global-rules.example.md`](docs/global-rules.example.md)
-
-<details>
-<summary>点击查看完整配置</summary>
-
-````markdown
-# Claude Code 开发规范 v3.1
-
-> 开发规范、工具使用指南、工作流程。身份定义见 `~/.config/opencode/AGENTS.md`
-
----
-
-## 1. 编码规范
-
-### 1.1 命名规范
-
-| 语言   | 变量/属性        | 函数/方法        | 类型/类          | 常量             |
-| ------ | ---------------- | ---------------- | ---------------- | ---------------- |
-| Swift  | `lowerCamelCase` | `lowerCamelCase` | `UpperCamelCase` | `lowerCamelCase` |
-| TS/JS  | `lowerCamelCase` | `lowerCamelCase` | `UpperCamelCase` | `UPPER_SNAKE`    |
-| Python | `snake_case`     | `snake_case`     | `UpperCamelCase` | `UPPER_SNAKE`    |
-
-**原则**：
-
-- 描述性命名，避免无意义缩写
-- 同一概念用同一词汇（`fetch`/`get`/`load` 选一个坚持）
-- 循环变量可短（`i`），公开 API 必须详尽
-
-### 1.2 代码风格
-
-- **简洁**：线性逻辑 > 嵌套，复用 3 次以上才抽象
-- **现代**：Swift 6+、ES2022+、Python 3.12+
-- **类型**：必要处声明类型，避免 `any`
-- **注释**：解释 Why 而非 What，复杂逻辑必须注释
-
-### 1.3 文件组织
-
-| 类型      | Swift                | TS/JS           |
-| --------- | -------------------- | --------------- |
-| View      | `XxxView.swift`      | `XxxPage.tsx`   |
-| ViewModel | `XxxViewModel.swift` | `useXxx.ts`     |
-| Model     | `Xxx.swift`          | `xxx.types.ts`  |
-| Service   | `XxxService.swift`   | `xxxService.ts` |
-| Extension | `Xxx+Yyy.swift`      | `xxx.utils.ts`  |
-
----
-
-## 2. Swift/iOS 规范
-
-### 2.1 语法偏好
-
-```swift
-// ✅ 推荐
-func fetchUser() async throws -> User { ... }
-@Observable class ViewModel { ... }
-
-// ❌ 避免
-func fetchUser(completion: @escaping (Result<User, Error>) -> Void) { ... }
-class ViewModel: ObservableObject { ... }  // iOS 17 以下兼容时可用
-```
-````
-
-### 2.2 架构模式
-
-```
-App/
-├── Core/           # 业务逻辑、领域模型
-├── Data/           # 网络、持久化、Repository
-├── Features/       # 功能模块（按业务划分）
-│   ├── Auth/
-│   ├── Home/
-│   └── Settings/
-└── Shared/         # 通用组件、扩展、工具
-```
-
-- **MVVM + @Observable**：View ↔ ViewModel ↔ Model
-- **依赖注入**：`@Environment` 或初始化器
-
-### 2.3 安全编码
-
-```swift
-// ✅ 安全解包
-guard let user = user else { return }
-if let name = user.name { ... }
-
-// ✅ 弱引用防循环
-Task { [weak self] in
-    await self?.doSomething()
-}
-
-// ❌ 禁止强制解包（除非 100% 确定）
-let user = user!
-```
-
-### 2.4 SwiftUI 最佳实践
-
-- `LazyVStack`/`LazyHStack` 处理长列表
-- 避免在 `body` 中复杂计算
-- `@ViewBuilder` 抽取重复视图逻辑
-- 遵循 HIG（间距 8pt 倍数、系统颜色）
-
-### 2.5 代码结构
-
-```swift
-// MARK: - Properties
-// MARK: - Lifecycle
-// MARK: - Public Methods
-// MARK: - Private Methods
-// MARK: - Actions
-```
-
----
-
-## 3. 工具使用指南
-
-### 3.1 MCP 工具
-
-| MCP                   | 状态 | 用途            | 使用场景                   |
-| --------------------- | ---- | --------------- | -------------------------- |
-| `ace-tool`            | ✅   | 代码语义搜索    | 查找函数、类、理解代码结构 |
-| `context7`            | ✅   | 官方库文档      | 查 Swift/SwiftUI/Combine   |
-| `filesystem`          | ✅   | 文件操作        | 读写 ~/ 目录下的文件       |
-| `github`              | ✅   | GitHub API      | 创建 PR、查 Issue          |
-| `sequential-thinking` | ✅   | 分步推理        | 复杂问题分解               |
-| `memory`              | ✅   | 持久记忆        | 跨 Session 保存信息        |
-| `grep_app`            | ✅   | GitHub 代码搜索 | 查找开源实现示例           |
-
-**优先级**：
-
-1. 搜索代码 → `ace-tool`（语义搜索，优于 grep）
-2. 查 API 文档 → `context7`（官方文档）
-3. GitHub 操作 → `github` MCP（优于 `gh` 命令）
-4. 复杂推理 → `sequential-thinking`（分步思考）
-5. 记住信息 → `memory`（跨会话记忆）
-
-### 3.2 Agent 选择
-
-#### 按任务类型
-
-| 任务类型     | 首选 Agent | 备选 Agent   | 模型           | 说明               |
-| ------------ | ---------- | ------------ | -------------- | ------------------ |
-| 日常对话     | `@0m0`     | -            | Sonnet 4.5     | 箱宝人格（默认）   |
-| 调试/崩溃    | `@debug`   | `@debug2`    | GPT 5.2        | 深度调试           |
-| SwiftUI 界面 | `@gemini`  | `@gemini2`   | Gemini 3 Pro   | UI 开发            |
-| Swift 架构   | `@swift`   | `@swift2`    | Sonnet 4.5     | 架构设计           |
-| 架构审查     | `@arch`    | `@arch2`     | Opus 4.5       | 深度审查（自定义） |
-| AI 生图      | `@image`   | `@local-img` | Gemini 3 Image | 图像生成           |
-| Apple 文档   | `@docs`    | `@librarian` | GLM 4.7        | 文档查询           |
-| 代码搜索     | `@search`  | `@explore`   | Grok           | 代码探索（自定义） |
-| 快速问答     | `@free`    | -            | GLM 4.7 (免费) | 免费模型           |
-| 深度思考     | `@think-o` | `@think-s`   | Opus/Sonnet    | 1API Thinking      |
-| 本地模型     | `@local-*` | -            | 2API           | 本地反代           |
-
-**注意**：`@oracle`, `@explore`, `@librarian`, `@frontend-ui-ux-engineer` 是 oh-my-Claude 内置 agents。
-
-#### 按成本（从低到高）
-
-```
-免费: @free → @explore
-本地: @think-s → @think-o → @local-g
-AG:   @gemini/@swift → @oracle
-官方: @gemini2/@swift2 → @oracle2 → @debug2
-```
-
-### 3.3 Formatters（自动格式化）
-
-| 语言       | 工具        | 触发时机                  |
-| ---------- | ----------- | ------------------------- |
-| Swift      | SwiftFormat | 保存 .swift 文件时        |
-| TS/JS/JSON | Prettier    | 保存 .ts/.tsx/.js/.jsx 时 |
-| Python     | Ruff        | 保存 .py 文件时           |
-
-### 3.4 Skills 命令
-
-| 命令              | 功能                            | 触发时机       |
-| ----------------- | ------------------------------- | -------------- |
-| `/commit`         | 分析变更 + 生成提交信息 + 提交  | 完成一个功能点 |
-| `/commit-push-pr` | 提交 + 推送 + 创建 PR           | 准备提交审查   |
-| `/clean_gone`     | 清理已删除的远程分支            | 定期清理       |
-| `/test`           | 运行测试，失败自动修复          | 开发完成后验证 |
-| `/translate`      | 翻译代码注释/文档 (英↔中)      | 需要翻译时     |
-| `/swift-check`    | SwiftFormat + SwiftLint + Build | 提交前检查     |
-| `/xcode-build`    | Xcode 项目构建                  | 构建验证       |
-| `/simctl`         | 模拟器控制 (截图/录屏/推送等)   | 调试模拟器时   |
-
-### 3.5 快捷键
-
-| 快捷键        | 功能           |
-| ------------- | -------------- |
-| `Enter`       | 提交消息       |
-| `Shift+Enter` | 换行           |
-| `Escape`      | 中断           |
-| `Ctrl+P`      | 上一条历史     |
-| `Ctrl+N`      | 下一条历史     |
-| `Tab`         | 切换 Agent     |
-| `Ctrl+T`      | 切换 Plan 模式 |
-| `Ctrl+Z`      | 撤销           |
-| `Ctrl+Y`      | 重做           |
-| `Ctrl+L`      | 清屏           |
-| `Ctrl+Right`  | 切换到子会话   |
-| `Ctrl+Left`   | 返回父会话     |
-
-### 3.6 PR 审查 Agents
-
-| Agent                   | 功能         | 触发方式           |
-| ----------------------- | ------------ | ------------------ |
-| `code-reviewer`         | 通用代码审查 | "审查这段代码"     |
-| `code-simplifier`       | 代码简化     | "简化这段代码"     |
-| `comment-analyzer`      | 注释准确性   | "检查注释"         |
-| `pr-test-analyzer`      | 测试覆盖率   | "检查测试覆盖"     |
-| `silent-failure-hunter` | 静默失败检测 | "检查错误处理"     |
-| `type-design-analyzer`  | 类型设计     | "分析这个类型设计" |
-
----
-
-## 4. 工作流程
-
-### 4.1 功能开发
-
-```
-1. 理解需求 → 不清楚时主动询问
-2. 探索代码 → ace-tool 搜索相关代码
-3. 设计方案 → 复杂功能用 @arch 审查
-4. 实现代码 → SwiftUI 用 @gemini，架构用 @swift
-5. 自我审查 → code-reviewer + code-simplifier
-6. 提交代码 → /commit 或 /commit-push-pr
-```
-
-### 4.2 调试流程
-
-```
-1. 收集信息 → 完整错误日志、堆栈追踪、复现步骤
-2. 分析问题 → 使用 @debug 深度分析
-3. 验证修复 → 确保不引入新问题，添加测试
-```
-
-### 4.3 代码审查
-
-```
-1. 自动审查 → code-reviewer + silent-failure-hunter
-2. 架构审查 → 大改动用 @arch
-3. 简化优化 → code-simplifier
-```
-
----
-
-## 5. 安全规范
-
-### 5.1 操作确认级别
-
-#### 🔴 必须确认
-
-- Git: `push --force`、`reset --hard`、`rebase`、删除远程分支
-- 文件: `rm -rf`、删除配置文件、批量删除 5+ 文件
-- 配置: Package.swift、.env、Entitlements
-
-#### 🟡 建议确认
-
-- 大范围重构（5+ 文件）
-- API Breaking Changes
-- 权限/安全相关修改
-
-#### 🟢 无需确认
-
-- 格式化、注释、日志、单文件小改动、测试、文档
-
-### 5.2 敏感信息
-
-- **禁止提交**：API Key、Token、密码、证书
-- **检查文件**：.env、credentials.json、_.pem、_.p12
-
----
-
-## 6. 输出规范
-
-### 6.1 代码引用
-
-```
-文件路径:行号
-例: src/auth/AuthService.swift:45
-```
-
-### 6.2 调试输出
-
-```
-【根因】问题的根本原因
-【触发条件】如何复现
-【修复方案】具体修复步骤
-【预防建议】如何避免再次发生
-```
-
-### 6.3 审查输出
-
-```
-【评分】好品味 / 凑合 / 需改进
-【问题】[严重程度] 问题描述 (文件:行号)
-【建议】改进方向
-```
-
----
-
-## 附录：快速参考
-
-| 场景           | 推荐操作                |
-| -------------- | ----------------------- |
-| 崩溃/死锁/内存 | `@debug` 调试分析       |
-| SwiftUI 布局   | `@gemini` + HIG 规范    |
-| 架构设计       | `@swift` + `@arch` 审查 |
-| 查 Apple 文档  | `@docs` 或 `context7`   |
-| 搜索代码       | `ace-tool`              |
-| 创建 PR        | `/commit-push-pr`       |
-| 代码审查       | `code-reviewer`         |
-| 生成图片       | `@image`                |
-| GitHub 操作    | `github` MCP            |
-
-````
-
-</details>
+**示例文件**: 👉 [`docs/global-rules.example.md`](docs/global-rules.example.md)（点击查看完整配置）
 
 ---
 
 ### 3. oh-my-opencode.json - 插件配置
 
-**位置**: `~/.config/opencode/oh-my-opencode.json`
-**作用**: Oh-My-OpenCode 插件的核心配置，定义 MCP、Agents、实验特性等
-**示例文件**: [`docs/oh-my-opencode.example.json`](docs/oh-my-opencode.example.json)
+**位置**: `~/.config/opencode/oh-my-opencode.json`  
+**作用**: Oh-My-OpenCode 插件的核心配置，定义 MCP、Agents、实验特性等  
+**示例文件**: 👉 [`docs/oh-my-opencode.example.json`](docs/oh-my-opencode.example.json)（点击查看完整配置）
+
+---
 
 ### 4. opencode.json - OpenCode 主配置
 
-**位置**: `~/.config/opencode/opencode.json`
-**作用**: OpenCode 的完整配置，包括模型、Agent、MCP、LSP 等所有设置
-**示例文件**: [`docs/opencode.example.json`](docs/opencode.example.json)（285 行，已脱敏，可直接查看）
+**位置**: `~/.config/opencode/opencode.json`  
+**作用**: OpenCode 的完整配置，包括模型、Agent、MCP、LSP 等所有设置  
+**示例文件**: 👉 [`docs/opencode.example.json`](docs/opencode.example.json)（点击查看完整配置，285 行已脱敏）
 
 <details>
 <summary>点击查看配置说明</summary>
 
 **包含内容**：
+
 - MCP 服务器配置（ace-tool、filesystem、github、memory 等）
 - Provider 配置（anthropic、google、openai、自定义提供商）
 - Agent 配置（0m0、debug、gemini、swift、arch、image 等）
@@ -547,6 +170,7 @@ AG:   @gemini/@swift → @oracle
 - 插件列表（oh-my-opencode、antigravity-auth 等）
 
 **使用方法**：
+
 1. 复制 [`docs/opencode.example.json`](docs/opencode.example.json) 到 `~/.config/opencode/opencode.json`
 2. 替换敏感信息（API Keys、Tokens、用户名）
 3. 根据需要调整模型、Agent 配置
@@ -556,7 +180,7 @@ AG:   @gemini/@swift → @oracle
 <details>
 <summary>点击查看完整配置</summary>
 
-```json
+````json
 {
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/master/assets/oh-my-opencode.schema.json",
 
