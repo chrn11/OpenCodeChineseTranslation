@@ -112,19 +112,26 @@ function exec(command, options = {}) {
 
 /**
  * 异步执行命令（带实时输出）
+ * @param {string} command - 命令（Windows下为完整命令，Unix下为命令名）
+ * @param {string[]} args - 参数数组（Windows下可忽略，因为使用shell模式）
+ * @param {object} options - spawn 选项
  */
-function execLive(command, args, options = {}) {
+function execLive(command, args = [], options = {}) {
   return new Promise((resolve, reject) => {
     const { isWindows } = getPlatform();
-    const shell = isWindows ? true : false;
-    const cmd = isWindows ? command : command;
-    const cmdArgs = isWindows ? undefined : args;
 
-    const child = spawn(cmd, cmdArgs, {
+    // Windows: 使用 shell 模式，命令和参数合并
+    // Unix: 直接执行，参数分开传递
+    const spawnOptions = {
       stdio: 'inherit',
-      shell,
+      shell: isWindows,
       ...options,
-    });
+    };
+
+    // Windows 下如果有 args，需要合并到 command
+    const child = isWindows
+      ? spawn(args.length ? `${command} ${args.join(' ')}` : command, [], spawnOptions)
+      : spawn(command, args, spawnOptions);
 
     child.on('close', (code) => {
       if (code === 0) {

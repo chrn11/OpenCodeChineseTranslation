@@ -53,10 +53,10 @@ function addToPath(dirPath, scope = 'user') {
  * 检查是否在 PATH 中
  */
 function isInPath(dirPath) {
-  const { exec: execSync } = require('child_process');
   try {
-    const result = execSync(`echo %Path%`, { encoding: 'utf-8' });
-    return result.includes(dirPath);
+    // 直接检查环境变量，兼容性更好
+    const pathEnv = process.env.PATH || process.env.Path || '';
+    return pathEnv.split(';').some(p => p.toLowerCase() === dirPath.toLowerCase());
   } catch (e) {
     return false;
   }

@@ -1,13 +1,24 @@
 /**
  * package 命令
- * 将编译产物打包到 releases 目录，方便分发
+ * 将编译产物打包到 releases 目录，生成专业的发布包
+ *
+ * 目录结构:
+ *   releases/
+ *     └── v7.0.0/
+ *         ├── opencode-zh-CN-v7.0.0-windows-x64.zip
+ *         ├── opencode-zh-CN-v7.0.0-darwin-arm64.zip
+ *         ├── opencode-zh-CN-v7.0.0-linux-x64.zip
+ *         ├── RELEASE_NOTES.md
+ *         └── checksums.txt
  */
 
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { exec } = require('../core/utils.js');
 const { getOpencodeDir, getProjectDir, getPlatform } = require('../core/utils.js');
-const { step, success, error, indent, log } = require('../core/colors.js');
+const { step, success, error, indent, log, warn } = require('../core/colors.js');
+const Builder = require('../core/build.js');
 
 /**
  * 获取 releases 目录
@@ -17,44 +28,241 @@ function getReleasesDir() {
 }
 
 /**
- * 获取版本号
+ * 获取汉化脚本版本号
  */
-function getVersion() {
+function getI18nVersion() {
   try {
-    // 优先从 scripts 自己的 package.json 读取版本
     const projectDir = getProjectDir();
     const packageJson = path.join(projectDir, 'scripts', 'package.json');
     if (fs.existsSync(packageJson)) {
       const pkg = JSON.parse(fs.readFileSync(packageJson, 'utf-8'));
-      return pkg.version || 'unknown';
-    }
-    // 备用：从 opencode 源码读取
-    const opencodeDir = getOpencodeDir();
-    const opencodePkg = path.join(opencodeDir, 'package.json');
-    if (fs.existsSync(opencodePkg)) {
-      const pkg = JSON.parse(fs.readFileSync(opencodePkg, 'utf-8'));
-      return pkg.version || 'unknown';
+      return pkg.version || '0.0.0';
     }
   } catch {
     // 忽略
   }
-  return 'unknown';
+  return '0.0.0';
+}
+
+/**
+ * 获取 OpenCode 源码版本信息
+ */
+function getOpencodeVersion() {
+  try {
+    const opencodeDir = getOpencodeDir();
+
+    // 读取 package.json
+    const packageJson = path.join(opencodeDir, 'package.json');
+    let version = 'unknown';
+    let bunVersion = 'unknown';
+
+    if (fs.existsSync(packageJson)) {
+      const pkg = JSON.parse(fs.readFileSync(packageJson, 'utf-8'));
+      bunVersion = pkg.packageManager?.split('@')[1] || 'unknown';
+    }
+
+    // 读取 opencode 包的版本
+    const opencodePkg = path.join(opencodeDir, 'packages', 'opencode', 'package.json');
+    if (fs.existsSync(opencodePkg)) {
+      const pkg = JSON.parse(fs.readFileSync(opencodePkg, 'utf-8'));
+      version = pkg.version || 'unknown';
+    }
+
+    // 获取 git commit
+    let commit = 'unknown';
+    let commitDate = 'unknown';
+    try {
+      commit = exec('git rev-parse --short HEAD', { cwd: opencodeDir, stdio: 'pipe' }).trim();
+      commitDate = exec('git log -1 --format=%ci', { cwd: opencodeDir, stdio: 'pipe' }).trim().split(' ')[0];
+    } catch {}
+
+    return { version, bunVersion, commit, commitDate };
+  } catch {
+    return { version: 'unknown', bunVersion: 'unknown', commit: 'unknown', commitDate: 'unknown' };
+  }
+}
+
+/**
+ * 计算文件的 MD5 和 SHA256
+ */
+function calculateChecksums(filePath) {
+  const fileBuffer = fs.readFileSync(filePath);
+  const md5 = crypto.createHash('md5').update(fileBuffer).digest('hex');
+  const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+  return { md5, sha256 };
+}
+
+/**
+ * 生成 Release Notes 模板
+ */
+function generateReleaseNotes(version, opencodeInfo, packages) {
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+  const timeStr = now.toISOString().split('T')[1].split('.')[0];
+
+  let notes = `# OpenCode 中文汉化版 v${version}
+
+> 🎉 **发布日期**: ${dateStr} ${timeStr} UTC
+>
+> 📦 **基于 OpenCode**: v${opencodeInfo.version} (commit: \`${opencodeInfo.commit}\`)
+>
+> 🔧 **构建环境**: Bun ${opencodeInfo.bunVersion}
+
+---
+
+## 📋 版本信息
+
+| 项目 | 版本 |
+|------|------|
+| 汉化版本 | v${version} |
+| OpenCode 版本 | v${opencodeInfo.version} |
+| OpenCode Commit | \`${opencodeInfo.commit}\` (${opencodeInfo.commitDate}) |
+| Bun 版本 | ${opencodeInfo.bunVersion} |
+| 构建时间 | ${dateStr} ${timeStr} |
+
+---
+
+## ✨ 更新内容
+
+<!-- 请在此处填写本次更新的主要内容 -->
+
+### 🆕 新增功能
+-
+
+### 🔧 改进优化
+-
+
+### 🐛 问题修复
+-
+
+### 📝 其他变更
+-
+
+---
+
+## 📦 下载文件
+
+| 平台 | 文件名 | 大小 | MD5 |
+|------|--------|------|-----|
+`;
+
+  // 添加文件信息
+  for (const pkg of packages) {
+    notes += `| ${pkg.platform} | \`${pkg.filename}\` | ${pkg.size} | \`${pkg.md5.substring(0, 8)}...\` |\n`;
+  }
+
+  notes += `
+---
+
+## 🔐 校验码
+
+完整校验码请查看 \`checksums.txt\` 文件。
+
+\`\`\`
+`;
+
+  for (const pkg of packages) {
+    notes += `# ${pkg.filename}\n`;
+    notes += `MD5:    ${pkg.md5}\n`;
+    notes += `SHA256: ${pkg.sha256}\n\n`;
+  }
+
+  notes += `\`\`\`
+
+---
+
+## 📖 安装说明
+
+### Windows
+1. 下载 \`opencode-zh-CN-v${version}-windows-x64.zip\`
+2. 解压到任意目录
+3. 双击 \`opencode.exe\` 运行
+4. (可选) 将目录添加到 PATH 环境变量
+
+### macOS (Apple Silicon)
+\`\`\`bash
+# 下载并解压
+unzip opencode-zh-CN-v${version}-darwin-arm64.zip -d ~/Applications/
+
+# 添加执行权限
+chmod +x ~/Applications/opencode
+
+# 运行
+~/Applications/opencode
+\`\`\`
+
+### Linux
+\`\`\`bash
+# 下载并解压
+unzip opencode-zh-CN-v${version}-linux-x64.zip -d ~/.local/bin/
+
+# 添加执行权限
+chmod +x ~/.local/bin/opencode
+
+# 运行
+opencode
+\`\`\`
+
+---
+
+## 🔗 相关链接
+
+- [汉化项目 GitHub](https://github.com/1186258278/OpenCodeChineseTranslation)
+- [汉化项目 Gitee](https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation)
+- [OpenCode 官方](https://github.com/anomalyco/opencode)
+- [问题反馈](https://github.com/1186258278/OpenCodeChineseTranslation/issues)
+
+---
+
+## ⚠️ 注意事项
+
+1. 首次运行需要配置 API Key
+2. 建议使用终端/命令行运行以获得最佳体验
+3. 如遇问题请查看 [FAQ](https://github.com/1186258278/OpenCodeChineseTranslation#-常见问题) 或提交 Issue
+
+---
+
+> 🤖 由 OpenCode 中文汉化项目自动生成
+`;
+
+  return notes;
+}
+
+/**
+ * 生成 checksums.txt
+ */
+function generateChecksums(packages) {
+  const now = new Date().toISOString();
+  let content = `# OpenCode 中文汉化版 - 文件校验码
+# 生成时间: ${now}
+#
+# 验证方法:
+#   Windows PowerShell: Get-FileHash -Algorithm SHA256 <文件名>
+#   Linux/macOS: sha256sum <文件名> 或 md5sum <文件名>
+#
+# ============================================================
+
+`;
+
+  for (const pkg of packages) {
+    content += `文件: ${pkg.filename}
+大小: ${pkg.size}
+MD5:    ${pkg.md5}
+SHA256: ${pkg.sha256}
+
+`;
+  }
+
+  return content;
 }
 
 /**
  * 打包单个平台
  */
-async function packagePlatform(platform) {
+async function packagePlatform(platform, versionDir) {
   const { platform: osPlatform } = getPlatform();
-  // 移除重复导入，使用顶部导入的函数
 
   step(`打包 ${platform}`);
-
-  // 确保目录存在
-  const releasesDir = getReleasesDir();
-  if (!fs.existsSync(releasesDir)) {
-    fs.mkdirSync(releasesDir, { recursive: true });
-  }
 
   // 获取编译产物
   const opencodeDir = getOpencodeDir();
@@ -66,18 +274,44 @@ async function packagePlatform(platform) {
     `opencode-${platform}`
   );
 
+  // 如果编译产物不存在，自动触发编译
   if (!fs.existsSync(distDir)) {
-    error(`编译产物不存在: ${distDir}`);
-    return false;
+    log(`  编译产物不存在，正在编译 ${platform}...`, 'yellow');
+
+    const builder = new Builder();
+
+    // 清理该平台的旧编译产物（如果存在）
+    const platformDistDir = path.join(opencodeDir, 'packages', 'opencode', 'dist', `opencode-${platform}`);
+    if (fs.existsSync(platformDistDir)) {
+      log(`  清理旧编译产物: ${platformDistDir}`, 'dim');
+      fs.rmSync(platformDistDir, { recursive: true, force: true });
+    }
+
+    try {
+      const buildResult = await builder.build({ platform, silent: false });
+      if (!buildResult) {
+        error(`编译 ${platform} 失败`);
+        return null;
+      }
+      success(`编译 ${platform} 完成`);
+    } catch (e) {
+      error(`编译失败: ${e.message}`);
+      return null;
+    }
+  }
+
+  // 再次检查编译产物
+  if (!fs.existsSync(distDir)) {
+    error(`编译产物仍不存在: ${distDir}`);
+    return null;
   }
 
   // 读取版本号
-  const version = getVersion();
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+  const version = getI18nVersion();
   const baseName = `opencode-zh-CN-v${version}-${platform}`;
 
   // 创建临时打包目录
-  const tempDir = path.join(releasesDir, 'temp', baseName);
+  const tempDir = path.join(versionDir, 'temp', baseName);
   if (fs.existsSync(tempDir)) {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -88,6 +322,11 @@ async function packagePlatform(platform) {
   const binSource = path.join(distDir, 'bin', `opencode${binExt}`);
   const binDest = path.join(tempDir, `opencode${binExt}`);
 
+  if (!fs.existsSync(binSource)) {
+    error(`二进制文件不存在: ${binSource}`);
+    return null;
+  }
+
   fs.copyFileSync(binSource, binDest);
 
   // 设置可执行权限 (Unix)
@@ -95,33 +334,8 @@ async function packagePlatform(platform) {
     fs.chmodSync(binDest, 0o755);
   }
 
-  // 创建 README
-  let readme = `OpenCode 中文汉化版 ${version}
-
-平台: ${platform}
-构建日期: ${dateStr}
-
-安装说明:
-`;
-
-  if (platform === 'windows-x64') {
-    readme += `1. 将 opencode.exe 解压到任意目录
-2. 双击运行即可使用
-3. 建议创建快捷方式到桌面`;
-  } else if (platform === 'darwin-arm64') {
-    readme += `1. 将 opencode 解压到 Applications 目录或任意位置
-2. 在终端中运行: chmod +x opencode
-3. 运行: ./opencode`;
-  } else {
-    readme += `1. 将 opencode 解压到 /usr/local/bin 或其他 PATH 目录
-2. 添加执行权限: chmod +x opencode
-3. 运行: opencode`;
-  }
-
-  fs.writeFileSync(path.join(tempDir, 'README.txt'), readme);
-
   // 压缩
-  const outputPath = path.join(releasesDir, `${baseName}.zip`);
+  const outputPath = path.join(versionDir, `${baseName}.zip`);
 
   if (fs.existsSync(outputPath)) {
     fs.unlinkSync(outputPath);
@@ -136,7 +350,7 @@ async function packagePlatform(platform) {
       );
     } catch (e) {
       error(`压缩失败: ${e.message}`);
-      return false;
+      return null;
     }
   } else {
     // Unix: 使用 zip 命令
@@ -144,56 +358,117 @@ async function packagePlatform(platform) {
       exec(`cd "${tempDir}" && zip -r "${outputPath}" .`, { stdio: 'pipe' });
     } catch (e) {
       error(`压缩失败: ${e.message}`);
-      return false;
+      return null;
     }
   }
 
   // 清理临时目录
   fs.rmSync(tempDir, { recursive: true, force: true });
 
-  // 获取文件大小
+  // 清理 temp 目录
+  const tempBaseDir = path.join(versionDir, 'temp');
+  if (fs.existsSync(tempBaseDir)) {
+    const remaining = fs.readdirSync(tempBaseDir);
+    if (remaining.length === 0) {
+      fs.rmdirSync(tempBaseDir);
+    }
+  }
+
+  // 获取文件信息
   const stats = fs.statSync(outputPath);
   const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+  const checksums = calculateChecksums(outputPath);
 
   success(`打包完成: ${path.basename(outputPath)} (${sizeMB} MB)`);
-  indent(`路径: ${outputPath}`, 2);
 
-  return true;
+  return {
+    platform,
+    filename: `${baseName}.zip`,
+    path: outputPath,
+    size: `${sizeMB} MB`,
+    bytes: stats.size,
+    md5: checksums.md5,
+    sha256: checksums.sha256,
+  };
 }
 
 /**
  * 打包所有平台
  */
 async function packageAll(options = {}) {
-  let platforms = ['windows-x64', 'darwin-arm64', 'linux-x64'];
+  const platforms = ['windows-x64', 'darwin-arm64', 'linux-x64'];
+  const version = getI18nVersion();
+  const opencodeInfo = getOpencodeVersion();
 
-  step('打包所有平台');
+  step(`打包 v${version} (基于 OpenCode ${opencodeInfo.version})`);
 
+  // 创建版本目录
+  const releasesDir = getReleasesDir();
+  const versionDir = path.join(releasesDir, `v${version}`);
+
+  if (!fs.existsSync(versionDir)) {
+    fs.mkdirSync(versionDir, { recursive: true });
+  }
+
+  const packages = [];
   const results = [];
-  const releaseDir = getReleasesDir();
 
   for (const targetPlatform of platforms) {
-    const result = await packagePlatform(targetPlatform);
-    results.push({ platform: targetPlatform, success: result });
+    const result = await packagePlatform(targetPlatform, versionDir);
+    if (result) {
+      packages.push(result);
+      results.push({ platform: targetPlatform, success: true });
+    } else {
+      results.push({ platform: targetPlatform, success: false });
+    }
+  }
+
+  // 生成 Release Notes
+  if (packages.length > 0) {
+    const releaseNotes = generateReleaseNotes(version, opencodeInfo, packages);
+    const releaseNotesPath = path.join(versionDir, 'RELEASE_NOTES.md');
+    fs.writeFileSync(releaseNotesPath, releaseNotes, 'utf-8');
+    success(`生成发布说明: RELEASE_NOTES.md`);
+
+    // 生成 checksums.txt
+    const checksums = generateChecksums(packages);
+    const checksumsPath = path.join(versionDir, 'checksums.txt');
+    fs.writeFileSync(checksumsPath, checksums, 'utf-8');
+    success(`生成校验文件: checksums.txt`);
   }
 
   // 显示汇总
   const successCount = results.filter((r) => r.success).length;
   console.log('');
 
-  log(`=== 打包完成: ${successCount}/${results.length} ===`, 'cyan');
-  log(`输出目录: ${releaseDir}`, 'dim');
+  log(`${'═'.repeat(50)}`, 'cyan');
+  log(`  打包完成: ${successCount}/${results.length} 个平台`, 'cyan');
+  log(`${'═'.repeat(50)}`, 'cyan');
+  log(`  版本目录: ${versionDir}`, 'dim');
+  console.log('');
 
   // 列出所有生成的文件
-  if (fs.existsSync(releaseDir)) {
-    const files = fs.readdirSync(releaseDir).filter((f) => f.endsWith('.zip'));
+  if (fs.existsSync(versionDir)) {
+    const files = fs.readdirSync(versionDir);
+    log('  生成的文件:', 'white');
     files.forEach((file) => {
-      const filePath = path.join(releaseDir, file);
+      const filePath = path.join(versionDir, file);
       const stats = fs.statSync(filePath);
-      const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
-      log(`  ${file} (${sizeMB} MB)`, 'dim');
+      if (stats.isFile()) {
+        const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+        const icon = file.endsWith('.zip') ? '📦' : file.endsWith('.md') ? '📄' : '📋';
+        log(`    ${icon} ${file} (${sizeMB} MB)`, 'dim');
+      }
     });
   }
+  console.log('');
+
+  // 提示编辑 Release Notes
+  if (packages.length > 0) {
+    warn('请编辑 RELEASE_NOTES.md 填写更新内容!');
+    log(`  路径: ${path.join(versionDir, 'RELEASE_NOTES.md')}`, 'dim');
+  }
+
   console.log('');
 
   return results.every((r) => r.success);
@@ -210,13 +485,34 @@ async function run(options = {}) {
   }
 
   if (platform) {
-    return await packagePlatform(platform);
+    const version = getI18nVersion();
+    const releasesDir = getReleasesDir();
+    const versionDir = path.join(releasesDir, `v${version}`);
+
+    if (!fs.existsSync(versionDir)) {
+      fs.mkdirSync(versionDir, { recursive: true });
+    }
+
+    const result = await packagePlatform(platform, versionDir);
+    return result !== null;
   }
 
   // 默认打包当前平台
-  const { getBuildArgs } = require('../core/utils.js');
-  const { platform: currentPlatform } = getBuildArgs();
-  return await packagePlatform(currentPlatform);
+  const { isWindows, isMacOS } = getPlatform();
+  let currentPlatform = 'linux-x64';
+  if (isWindows) currentPlatform = 'windows-x64';
+  else if (isMacOS) currentPlatform = 'darwin-arm64';
+
+  const version = getI18nVersion();
+  const releasesDir = getReleasesDir();
+  const versionDir = path.join(releasesDir, `v${version}`);
+
+  if (!fs.existsSync(versionDir)) {
+    fs.mkdirSync(versionDir, { recursive: true });
+  }
+
+  const result = await packagePlatform(currentPlatform, versionDir);
+  return result !== null;
 }
 
 module.exports = {
@@ -224,4 +520,6 @@ module.exports = {
   packagePlatform,
   packageAll,
   getReleasesDir,
+  getI18nVersion,
+  getOpencodeVersion,
 };

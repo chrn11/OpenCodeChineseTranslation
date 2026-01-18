@@ -30,6 +30,94 @@ class Builder {
   }
 
   /**
+   * 修复 Bun 版本检查（允许更高版本）
+   * 这是运行时修复，不影响官方源码更新
+   */
+  patchBunVersionCheck() {
+    const scriptPath = path.join(this.opencodeDir, 'packages', 'script', 'src', 'index.ts');
+
+    if (!exists(scriptPath)) {
+      return false;
+    }
+
+    try {
+      let content = fs.readFileSync(scriptPath, 'utf-8');
+
+      // 检查是否已经修复过（包含 isCompatible）
+      if (content.includes('isCompatible')) {
+        return true; // 已修复
+      }
+
+      // 检查是否包含严格版本检查
+      const strictCheck = 'if (process.versions.bun !== expectedBunVersion)';
+      if (!content.includes(strictCheck)) {
+        return true; // 不需要修复
+      }
+
+      // 使用正则表达式匹配严格版本检查（忽略缩进差异）
+      const strictCheckRegex = /if\s*\(\s*process\.versions\.bun\s*!==\s*expectedBunVersion\s*\)\s*\{\s*\n\s*throw\s+new\s+Error\s*\(\s*`This script requires bun@\$\{expectedBunVersion\}, but you are using bun@\$\{process\.versions\.bun\}`\s*\)\s*\n\s*\}/;
+
+      const newCode = `// 放宽版本检查：允许使用相同或更高版本的 Bun (1.3.5+)
+const [expectedMajor, expectedMinor, expectedPatch] = expectedBunVersion.split(".").map(Number)
+const [actualMajor, actualMinor, actualPatch] = (process.versions.bun || "0.0.0").split(".").map(Number)
+
+const isCompatible =
+  actualMajor > expectedMajor ||
+  (actualMajor === expectedMajor && actualMinor > expectedMinor) ||
+  (actualMajor === expectedMajor && actualMinor === expectedMinor && actualPatch >= expectedPatch)
+
+if (!isCompatible) {
+  throw new Error(\`This script requires bun@\${expectedBunVersion}+, but you are using bun@\${process.versions.bun}\`)
+}`;
+
+      if (strictCheckRegex.test(content)) {
+        content = content.replace(strictCheckRegex, newCode);
+        fs.writeFileSync(scriptPath, content, 'utf-8');
+        return true;
+      }
+
+      // 备用方案：简单的行替换
+      const lines = content.split('\n');
+      let patchApplied = false;
+      const newLines = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('if (process.versions.bun !== expectedBunVersion)')) {
+          // 跳过这一行和下面两行（throw 和 }）
+          newLines.push('// 放宽版本检查：允许使用相同或更高版本的 Bun (1.3.5+)');
+          newLines.push('const [expectedMajor, expectedMinor, expectedPatch] = expectedBunVersion.split(".").map(Number)');
+          newLines.push('const [actualMajor, actualMinor, actualPatch] = (process.versions.bun || "0.0.0").split(".").map(Number)');
+          newLines.push('');
+          newLines.push('const isCompatible =');
+          newLines.push('  actualMajor > expectedMajor ||');
+          newLines.push('  (actualMajor === expectedMajor && actualMinor > expectedMinor) ||');
+          newLines.push('  (actualMajor === expectedMajor && actualMinor === expectedMinor && actualPatch >= expectedPatch)');
+          newLines.push('');
+          newLines.push('if (!isCompatible) {');
+          newLines.push('  throw new Error(`This script requires bun@${expectedBunVersion}+, but you are using bun@${process.versions.bun}`)');
+          newLines.push('}');
+          // 跳过原来的 throw 和 }
+          i += 2;
+          patchApplied = true;
+        } else {
+          newLines.push(line);
+        }
+      }
+
+      if (patchApplied) {
+        fs.writeFileSync(scriptPath, newLines.join('\n'), 'utf-8');
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      warn(`版本检查修复失败: ${e.message}`);
+      return false;
+    }
+  }
+
+  /**
    * 安装依赖
    */
   async installDependencies(options = {}) {
@@ -61,6 +149,18 @@ class Builder {
   }
 
   /**
+   * 清理指定平台的编译产物
+   */
+  cleanPlatform(platform) {
+    const platformDistDir = path.join(this.buildDir, 'dist', `opencode-${platform}`);
+    if (exists(platformDistDir)) {
+      fs.rmSync(platformDistDir, { recursive: true, force: true });
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * 执行编译
    */
   async build(options = {}) {
@@ -72,6 +172,35 @@ class Builder {
 
     this.checkEnvironment();
 
+    // 修复 Bun 版本检查（运行时修复，不影响源码更新）
+    if (this.patchBunVersionCheck()) {
+      if (!silent) {
+        indent('已应用 Bun 版本兼容性修复', 2);
+      }
+    }
+
+    // 清理编译产物，确保纯净构建
+    if (platform) {
+      // 清理指定平台
+      if (this.cleanPlatform(platform)) {
+        if (!silent) {
+          indent(`已清理 ${platform} 编译产物`, 2);
+        }
+      }
+    } else {
+      // 清理所有平台
+      const platforms = ['windows-x64', 'darwin-arm64', 'linux-x64'];
+      let cleaned = false;
+      for (const p of platforms) {
+        if (this.cleanPlatform(p)) {
+          cleaned = true;
+        }
+      }
+      if (cleaned && !silent) {
+        indent('已清理旧编译产物', 2);
+      }
+    }
+
     // 确保依赖已安装
     await this.installDependencies({ silent });
 
@@ -79,9 +208,22 @@ class Builder {
       // 构建命令参数
       const args = ['run', 'script/build.ts'];
 
-      // 如果指定平台，添加 --single 参数
+      // 智能判断是否使用 --single
+      // 只有当目标平台与当前平台完全匹配时，才使用 --single
+      // 否则（跨平台构建），不使用 --single 以构建所有目标（因为 build.ts 不支持 --target）
       if (platform) {
-        args.push('--single');
+        const [targetOs, targetArch] = platform.split('-');
+        const currentOs = process.platform === 'win32' ? 'windows' : process.platform;
+        const currentArch = process.arch;
+
+        if (targetOs === currentOs && targetArch === currentArch) {
+          args.push('--single');
+        } else {
+          if (!silent) {
+            indent(`跨平台构建检测: 当前 ${currentOs}-${currentArch}, 目标 ${platform}`, 2);
+            indent(`将构建所有目标以获取 ${platform} 产物`, 2);
+          }
+        }
       }
 
       indent(`执行: ${this.bunPath} ${args.join(' ')}`, 2);

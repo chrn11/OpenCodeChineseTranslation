@@ -7,6 +7,7 @@ const { Command } = require('commander');
 const { checkEnvironment } = require('./env.js');
 const { step, success, error, log } = require('./colors.js');
 const { run: runMenu } = require('./menu.js');
+const { VERSION } = require('./version.js');
 
 // 导入命令
 const updateCmd = require('../commands/update.js');
@@ -18,6 +19,7 @@ const launchCmd = require('../commands/launch.js');
 const helperCmd = require('../commands/helper.js');
 const packageCmd = require('../commands/package.js');
 const deployCmd = require('../commands/deploy.js');
+const rollbackCmd = require('../commands/rollback.js');
 
 /**
  * 创建 CLI 应用
@@ -28,7 +30,7 @@ function createCLI() {
   program
     .name('opencodenpm')
     .description('OpenCode 中文汉化管理工具')
-    .version('6.0.0');
+    .version(VERSION);
 
   // update 命令
   program
@@ -50,9 +52,19 @@ function createCLI() {
     .command('apply')
     .description('应用汉化配置到源码')
     .option('-s, --silent', '静默模式')
+    .option('-b, --backup', '应用前自动备份')
+    .option('-r, --report', '生成翻译报告')
+    .option('--strict', '严格模式（变量问题时失败）')
+    .option('--dry-run', '模拟运行（不实际修改文件）')
+    .option('--no-check-variables', '跳过变量保护检查')
     .action(async (options) => {
       try {
         const result = await applyCmd.run(options);
+        // 检查返回结果
+        if (typeof result === 'object') {
+          const hasErrors = result.errors && result.errors.length > 0;
+          process.exit(hasErrors ? 1 : 0);
+        }
         process.exit(result ? 0 : 1);
       } catch (e) {
         error(e.message);
@@ -82,6 +94,8 @@ function createCLI() {
     .command('verify')
     .description('验证汉化配置和覆盖率')
     .option('-d, --detailed', '显示详细信息')
+    .option('--dry-run', '模拟运行检查（检测翻译匹配情况）')
+    .option('--no-check-variables', '跳过变量保护检查')
     .action(async (options) => {
       try {
         const result = await verifyCmd.run(options);
@@ -199,6 +213,25 @@ function createCLI() {
     .action(async () => {
       try {
         const result = await deployCmd.run();
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // rollback 命令
+  program
+    .command('rollback')
+    .description('回滚到之前的备份')
+    .option('-l, --list', '列出所有备份')
+    .option('-i, --id <backupId>', '指定要回滚的备份ID')
+    .action(async (options) => {
+      try {
+        const result = await rollbackCmd.run({
+          backupId: options.id,
+          list: options.list,
+        });
         process.exit(result ? 0 : 1);
       } catch (e) {
         error(e.message);

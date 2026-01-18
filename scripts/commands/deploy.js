@@ -6,8 +6,15 @@
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('../core/utils.js');
-const { getBinDir, getOpencodeDir, getPlatform } = require('../core/utils.js');
+const { getBinDir, getOpencodeDir, getProjectDir, getPlatform } = require('../core/utils.js');
 const { step, success, error, indent, warn } = require('../core/colors.js');
+
+/**
+ * 获取 opencodenpm 脚本路径
+ */
+function getOpencodenpmScript() {
+  return path.join(getProjectDir(), 'scripts', 'bin', 'opencodenpm');
+}
 
 /**
  * 获取编译产物的路径
@@ -70,129 +77,123 @@ function safeCopy(source, target) {
 }
 
 /**
- * 部署到 Windows 全局
+ * 部署单个文件到 Windows
  */
-function deployToWindows(binaryPath) {
+function deployFileToWindows(name, sourcePath, isNodeScript = false) {
   const npmGlobal = process.env.APPDATA
     ? path.join(process.env.APPDATA, 'npm')
     : path.join(require('os').homedir(), 'AppData', 'Roaming', 'npm');
 
-  // 确保 npm 全局目录存在
   if (!fs.existsSync(npmGlobal)) {
     fs.mkdirSync(npmGlobal, { recursive: true });
   }
 
-  const targetPath = path.join(npmGlobal, 'opencode.exe');
+  const targetName = isNodeScript ? name : `${name}.exe`;
+  const targetPath = path.join(npmGlobal, targetName);
 
-  // 安全复制文件
   try {
-    safeCopy(binaryPath, targetPath);
+    safeCopy(sourcePath, targetPath);
   } catch (e) {
-    warn(`部署警告: ${e.message}`);
-    indent(`请手动复制:`, 2);
-    indent(`  从: ${binaryPath}`, 4);
-    indent(`  到: ${targetPath}`, 4);
+    warn(`部署 ${name} 警告: ${e.message}`);
     return null;
   }
 
-  // 创建 opencode.cmd 包装器
-  const cmdPath = path.join(npmGlobal, 'opencode.cmd');
-  fs.writeFileSync(cmdPath, '@echo off\r\n"%~dp0opencode.exe" %*\r\n');
+  // 创建 CMD 包装器
+  const cmdPath = path.join(npmGlobal, `${name}.cmd`);
+  const cmdContent = isNodeScript
+    ? `@echo off\r\nnode "%~dp0${name}" %*\r\n`
+    : `@echo off\r\n"%~dp0${targetName}" %*\r\n`;
 
-  success(`已部署到: ${targetPath}`);
-  indent(`CMD 包装器: ${cmdPath}`, 2);
+  fs.writeFileSync(cmdPath, cmdContent);
 
-  // 检查 PATH
-  const pathVar = process.env.Path || process.env.PATH || '';
-  if (!pathVar.toLowerCase().includes(npmGlobal.toLowerCase())) {
-    indent('', 0);
-    indent('提示: 请确保以下目录在 PATH 环境变量中:', 2);
-    indent(npmGlobal, 4);
-  }
-
-  return targetPath;
+  success(`已部署 ${name}: ${targetPath}`);
+  
+  return { targetPath, npmGlobal };
 }
 
 /**
- * 部署到 Unix 全局 (Linux/macOS)
+ * 部署单个文件到 Unix
  */
-function deployToUnix(binaryPath) {
+function deployFileToUnix(name, sourcePath) {
   const usrLocalBin = '/usr/local/bin';
   const homeBin = path.join(require('os').homedir(), '.local', 'bin');
 
-  // 优先使用 ~/.local/bin (无需 sudo)
   let targetDir = homeBin;
-  let needsSudo = false;
-
-  // 检查 ~/.local/bin 是否在 PATH 中
   const pathVar = process.env.PATH || '';
-  if (!pathVar.includes(homeBin)) {
-    // 尝试 /usr/local/bin
-    if (fs.existsSync(usrLocalBin)) {
-      targetDir = usrLocalBin;
-      needsSudo = true;
-    }
+  
+  if (!pathVar.includes(homeBin) && fs.existsSync(usrLocalBin)) {
+    targetDir = usrLocalBin;
   }
 
-  // 确保目录存在
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
   }
 
-  const targetPath = path.join(targetDir, 'opencode');
-
-  // 复制文件
-  fs.copyFileSync(binaryPath, targetPath);
-
-  // 设置可执行权限
+  const targetPath = path.join(targetDir, name);
+  fs.copyFileSync(sourcePath, targetPath);
   fs.chmodSync(targetPath, 0o755);
 
-  success(`已部署到: ${targetPath}`);
-
-  if (!pathVar.includes(targetDir)) {
-    indent('', 0);
-    indent('提示: 请确保以下目录在 PATH 中:', 2);
-    indent(targetDir, 4);
-    indent('', 0);
-    indent(`  export PATH="$PATH:${targetDir}"`, 4);
-  }
-
-  return targetPath;
+  success(`已部署 ${name}: ${targetPath}`);
+  
+  return { targetPath, targetDir };
 }
 
 /**
  * 主运行函数
  */
 async function run(options = {}) {
-  step('部署 opencode 全局命令');
-
-  const binaryPath = getCompiledBinary();
-
-  if (!binaryPath) {
-    error('未找到编译产物，请先运行: opencodenpm build');
-    return false;
-  }
-
-  indent(`源文件: ${binaryPath}`, 2);
-
   const { platform } = getPlatform();
+  const binaryPath = getCompiledBinary();
+  const scriptPath = getOpencodenpmScript();
+  let successCount = 0;
 
-  try {
-    if (platform === 'win32') {
-      deployToWindows(binaryPath);
-    } else {
-      deployToUnix(binaryPath);
+  step('部署全局命令');
+
+  // 1. 部署 opencode (二进制)
+  if (binaryPath) {
+    indent(`部署 opencode...`, 2);
+    try {
+      if (platform === 'win32') {
+        const res = deployFileToWindows('opencode', binaryPath, false);
+        if (res) successCount++;
+      } else {
+        const res = deployFileToUnix('opencode', binaryPath);
+        if (res) successCount++;
+      }
+    } catch (e) {
+      error(`  部署 opencode 失败: ${e.message}`);
     }
-
-    indent('', 0);
-    indent('现在可以使用以下命令启动 OpenCode:', 2);
-    indent('  opencode', 4);
-
-    return true;
-  } catch (e) {
-    error(`部署失败: ${e.message}`);
-    return false;
+  } else {
+    warn('  未找到 opencode 编译产物，跳过部署 (请先运行 build)');
   }
+
+  // 2. 部署 opencodenpm (脚本)
+  if (fs.existsSync(scriptPath)) {
+    indent(`部署 opencodenpm...`, 2);
+    try {
+      if (platform === 'win32') {
+        const res = deployFileToWindows('opencodenpm', scriptPath, true);
+        if (res) successCount++;
+      } else {
+        const res = deployFileToUnix('opencodenpm', scriptPath);
+        if (res) successCount++;
+      }
+    } catch (e) {
+      error(`  部署 opencodenpm 失败: ${e.message}`);
+    }
+  } else {
+    warn('  未找到 opencodenpm 脚本，跳过部署');
+  }
+
+  if (successCount > 0) {
+    indent('', 0);
+    indent('现在可以使用以下命令:', 2);
+    if (binaryPath) indent('  opencode      - 启动 OpenCode 编辑器', 4);
+    if (fs.existsSync(scriptPath)) indent('  opencodenpm   - 启动汉化管理工具', 4);
+    return true;
+  }
+
+  return false;
 }
 
 module.exports = {
