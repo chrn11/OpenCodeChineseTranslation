@@ -130,7 +130,8 @@ OPENAI_MODEL=claude-sonnet-4-20250514
 ### 1. AGENTS.md - AI 助手身份定义
 
 **位置**: `~/.config/Claude/AGENTS.md`  
-**作用**: 定义 AI 助手的性格、原则、回复习惯和安全规范
+**作用**: 定义 AI 助手的性格、原则、回复习惯和安全规范  
+**示例文件**: 查看完整内容请展开下方折叠块
 
 <details>
 <summary>点击查看完整配置</summary>
@@ -200,7 +201,8 @@ OPENAI_MODEL=claude-sonnet-4-20250514
 ### 2. global-rules.md - 开发规范与工具指南
 
 **位置**: `~/.config/Claude/global-rules.md`  
-**作用**: 完整的编码规范、工具使用指南、工作流程定义
+**作用**: 完整的编码规范、工具使用指南、工作流程定义  
+**示例文件**: 查看完整内容请展开下方折叠块
 
 <details>
 <summary>点击查看完整配置</summary>
@@ -525,23 +527,31 @@ AG:   @gemini/@swift → @oracle
 
 **位置**: `~/.config/opencode/oh-my-opencode.json`
 **作用**: Oh-My-OpenCode 插件的核心配置，定义 MCP、Agents、实验特性等
+**示例文件**: 查看完整内容请展开下方折叠块
 
 ### 4. opencode.json - OpenCode 主配置
 
 **位置**: `~/.config/opencode/opencode.json`
 **作用**: OpenCode 的完整配置，包括模型、Agent、MCP、LSP 等所有设置
+**示例文件**: [`docs/opencode.example.json`](docs/opencode.example.json)（285 行，已脱敏，可直接查看）
 
-> **完整配置示例**：[`docs/opencode.example.json`](docs/opencode.example.json)（285 行，已脱敏）
->
-> 包含内容：
-> - MCP 服务器配置（ace-tool、filesystem、github、memory 等）
-> - Provider 配置（anthropic、google、openai、自定义提供商）
-> - Agent 配置（0m0、debug、gemini、swift、arch、image 等）
-> - LSP 语言服务器（Swift、TypeScript、Python）
-> - Formatter 自动格式化（SwiftFormat、Prettier、Ruff）
-> - 插件列表（oh-my-opencode、antigravity-auth 等）
->
-> **使用方法**：复制到 `~/.config/opencode/opencode.json`，然后替换敏感信息（API Keys、Tokens）
+<details>
+<summary>点击查看配置说明</summary>
+
+**包含内容**：
+- MCP 服务器配置（ace-tool、filesystem、github、memory 等）
+- Provider 配置（anthropic、google、openai、自定义提供商）
+- Agent 配置（0m0、debug、gemini、swift、arch、image 等）
+- LSP 语言服务器（Swift、TypeScript、Python）
+- Formatter 自动格式化（SwiftFormat、Prettier、Ruff）
+- 插件列表（oh-my-opencode、antigravity-auth 等）
+
+**使用方法**：
+1. 复制 [`docs/opencode.example.json`](docs/opencode.example.json) 到 `~/.config/opencode/opencode.json`
+2. 替换敏感信息（API Keys、Tokens、用户名）
+3. 根据需要调整模型、Agent 配置
+
+</details>
 
 <details>
 <summary>点击查看完整配置</summary>
