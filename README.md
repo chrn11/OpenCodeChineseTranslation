@@ -131,7 +131,7 @@ OPENAI_MODEL=claude-sonnet-4-20250514
 
 **位置**: `~/.config/opencode/AGENTS.md`  
 **作用**: 定义 AI 助手的性格、原则、回复习惯和安全规范  
-**示例文件**: 查看完整内容请展开下方折叠块
+**示例文件**: [`docs/AGENTS.example.md`](docs/AGENTS.example.md)
 
 <details>
 <summary>点击查看完整配置</summary>
@@ -202,7 +202,7 @@ OPENAI_MODEL=claude-sonnet-4-20250514
 
 **位置**: `~/.config/opencode/global-rules.md`  
 **作用**: 完整的编码规范、工具使用指南、工作流程定义  
-**示例文件**: 查看完整内容请展开下方折叠块
+**示例文件**: [`docs/global-rules.example.md`](docs/global-rules.example.md)
 
 <details>
 <summary>点击查看完整配置</summary>
@@ -527,7 +527,7 @@ AG:   @gemini/@swift → @oracle
 
 **位置**: `~/.config/opencode/oh-my-opencode.json`
 **作用**: Oh-My-OpenCode 插件的核心配置，定义 MCP、Agents、实验特性等
-**示例文件**: 查看完整内容请展开下方折叠块
+**示例文件**: [`docs/oh-my-opencode.example.json`](docs/oh-my-opencode.example.json)
 
 ### 4. opencode.json - OpenCode 主配置
 
