@@ -13,6 +13,15 @@ const {
   getPlatform,
 } = require("./utils.js");
 const { isOpencodeRunning } = require("./env.js");
+const {
+  blank,
+  padLabel,
+  statusBadge,
+  groupStart,
+  groupEnd,
+  kv,
+  indent,
+} = require("./colors.js");
 
 const updateCmd = require("../commands/update.js");
 const applyCmd = require("../commands/apply.js");
@@ -102,17 +111,28 @@ function showEnvInfo() {
   const { platform, arch, isMac, isWindows } = getPlatform();
   const platformNames = { darwin: "macOS", linux: "Linux", win32: "Windows" };
 
-  const nodeStatus = node.ok ? color.green("✓") : color.red("✗");
+  groupStart("系统环境");
+
+  const nodeStatus = node.ok ? "success" : "error";
+  kv(
+    padLabel("Node", 10),
+    `${statusBadge(nodeStatus)}  ${node.version ? color.dim(node.version) : color.red("未安装")}`,
+  );
+
   const bunStatus = bun.ok
     ? bun.isCorrectVersion
-      ? color.green("✓")
-      : color.yellow("⚠")
-    : color.red("✗");
-  const gitStatus = git.ok ? color.green("✓") : color.red("✗");
+      ? "success"
+      : "warn"
+    : "error";
+  kv(
+    padLabel("Bun", 10),
+    `${statusBadge(bunStatus)}  ${bun.version ? color.dim(bun.version) : color.red("未安装")}`,
+  );
 
-  p.log.message(
-    `${nodeStatus} Node ${color.dim(node.version || "未安装")}   ${bunStatus} Bun ${color.dim(bun.version || "未安装")}   ${gitStatus} Git`,
-    { symbol: color.green("◇") },
+  const gitStatus = git.ok ? "success" : "error";
+  kv(
+    padLabel("Git", 10),
+    `${statusBadge(gitStatus)}  ${git.ok ? color.dim("已安装") : color.red("未安装")}`,
   );
 
   let hwInfo = `${platformNames[platform] || platform} ${arch}`;
@@ -129,11 +149,13 @@ function showEnvInfo() {
       hwInfo = `${model} · ${chip}`;
     }
   } catch (e) {}
-  p.log.message(`设备信息  ${color.dim(hwInfo)}`, {
-    symbol: color.magenta("◆"),
-  });
+  kv(padLabel("设备信息", 10), `${statusBadge("info")}  ${color.dim(hwInfo)}`);
 
-  const running = isOpencodeRunning();
+  groupEnd();
+
+  groupStart("运行状态");
+
+  const runningInfo = isOpencodeRunning();
   let ocPath = null;
   try {
     const cmd = isWindows ? "where opencode" : "which opencode";
@@ -145,14 +167,18 @@ function showEnvInfo() {
       .split("\n")[0];
   } catch (e) {}
 
+  let recommend = null;
+
   if (ocPath && fs.existsSync(ocPath)) {
-    const status = running ? color.green("运行中") : color.dim("已停止");
+    const status = runningInfo.running ? color.green("运行中") : color.dim("已停止");
     const clickable = makeClickable(color.dim(ocPath), path.dirname(ocPath));
-    p.log.success(`OpenCode ${status}  ${clickable}`);
+    kv(padLabel("OpenCode", 10), `${status}  ${clickable}`);
   } else {
-    p.log.warn(
-      `OpenCode ${color.yellow("未安装")} ${color.dim("→ 运行 deploy")}`,
+    kv(
+      padLabel("OpenCode", 10),
+      `${color.yellow("未安装")} ${color.dim("→ 运行 deploy")}`,
     );
+    recommend = "运行 deploy";
   }
 
   const distPath = getDistPath();
@@ -162,61 +188,80 @@ function showEnvInfo() {
       color.dim(`dist/opencode-${getBuildPlatform()}`),
       distDir,
     );
-    p.log.success(`构建产物 ${color.green("已生成")}  ${clickable}`);
+    kv(padLabel("构建产物", 10), `${color.green("已生成")}  ${clickable}`);
   } else {
-    p.log.warn(
-      `构建产物 ${color.yellow("未生成")} ${color.dim("→ 运行 build")}`,
+    kv(
+      padLabel("构建产物", 10),
+      `${color.yellow("未生成")} ${color.dim("→ 运行 build")}`,
     );
+    if (!recommend) recommend = "运行 build";
   }
+
+  if (!recommend) recommend = "无需操作";
+
+  kv(padLabel("推荐", 10), color.cyan(recommend));
+
+  groupEnd();
+
+  groupStart("项目信息");
+
+  kv(padLabel("作者", 10), color.dim("xiaolajiao"));
+  kv(
+    padLabel("GitHub", 10),
+    color.dim("https://github.com/xiaolajiao/OpenCodeChineseTranslation"),
+  );
+  kv(padLabel("汉化版本", 10), color.green(getVersionInfo().zh));
+
+  groupEnd();
 }
 
 const MENU_OPTIONS = [
-  { value: "full", label: "🚀 一键汉化", hint: "同步 → 汉化 → 编译 → 部署" },
-  { value: "sync", label: "🔄 同步官方", hint: "拉取最新源码" },
-  { value: "apply", label: "🌐 应用汉化", hint: "全量 / 增量翻译" },
-  { value: "build", label: "🔨 编译部署", hint: "编译 + 安装到系统" },
-  { value: "check", label: "🔍 检查", hint: "质量检查 / 遗漏扫描" },
-  { value: "exit", label: "👋 退出" },
+  { value: "full", label: "🚀 一键汉化", hint: "自动化执行所有步骤" },
+  { value: "sync", label: "🔄 同步官方", hint: "获取最新上游代码" },
+  { value: "apply", label: "🌐 应用汉化", hint: "执行翻译 (支持增量)" },
+  { value: "build", label: "🔨 编译部署", hint: "编译并安装到系统" },
+  { value: "check", label: "🔍 检查翻译", hint: "诊断翻译遗漏与质量" },
+  { value: "exit", label: "👋 退出程序" },
 ];
 
 const NEXT_STEP_MAP = {
   sync: {
     recommended: "apply",
     options: [
-      { value: "apply", label: "🌐 应用汉化" },
-      { value: "menu", label: "📋 返回菜单" },
-      { value: "exit", label: "👋 退出" },
+      { value: "apply", label: "🌐 立即应用汉化" },
+      { value: "menu", label: "📋 返回主菜单" },
+      { value: "exit", label: "👋 退出程序" },
     ],
   },
   apply: {
     recommended: "build",
     options: [
-      { value: "build", label: "🔨 编译部署" },
-      { value: "check", label: "🔍 检查" },
-      { value: "menu", label: "📋 返回菜单" },
-      { value: "exit", label: "👋 退出" },
+      { value: "build", label: "🔨 立即编译部署" },
+      { value: "check", label: "🔍 检查翻译质量" },
+      { value: "menu", label: "📋 返回主菜单" },
+      { value: "exit", label: "👋 退出程序" },
     ],
   },
   build: {
-    recommended: "menu",
+    recommended: "exit",
     options: [
-      { value: "menu", label: "📋 返回菜单" },
-      { value: "exit", label: "👋 退出" },
+      { value: "exit", label: "👋 退出 (试用新版)" },
+      { value: "menu", label: "📋 返回主菜单" },
     ],
   },
   full: {
     recommended: "exit",
     options: [
-      { value: "menu", label: "📋 返回菜单" },
-      { value: "exit", label: "👋 退出" },
+      { value: "exit", label: "👋 退出程序" },
+      { value: "menu", label: "📋 返回主菜单" },
     ],
   },
   check: {
     recommended: "apply",
     options: [
-      { value: "apply", label: "🌐 应用汉化" },
-      { value: "menu", label: "📋 返回菜单" },
-      { value: "exit", label: "👋 退出" },
+      { value: "apply", label: "🌐 修复/应用汉化" },
+      { value: "menu", label: "📋 返回主菜单" },
+      { value: "exit", label: "👋 退出程序" },
     ],
   },
 };
@@ -236,7 +281,7 @@ async function showApplySubMenu() {
     return "back";
   }
 
-  console.log("");
+  blank();
 
   if (mode === "full") {
     await applyCmd.run({});
@@ -263,14 +308,14 @@ async function showBuildSubMenu() {
     return "back";
   }
 
-  console.log("");
+  blank();
 
   if (action === "both" || action === "build") {
     await buildCmd.run({});
   }
 
   if (action === "both" || action === "deploy") {
-    if (action === "both") console.log("");
+    if (action === "both") blank();
     await deployCmd.run({});
   }
 
@@ -292,7 +337,7 @@ async function showCheckSubMenu() {
     return "back";
   }
 
-  console.log("");
+  blank();
 
   if (action === "quality") {
     const translator = new Translator();
@@ -305,7 +350,7 @@ async function showCheckSubMenu() {
 }
 
 async function runCommand(cmd) {
-  console.log("");
+  blank();
 
   try {
     switch (cmd) {
@@ -352,7 +397,7 @@ async function askNextStep(currentCmd) {
     ],
   };
 
-  console.log("");
+  blank();
 
   const next = await p.select({
     message: "下一步",

@@ -6,7 +6,17 @@ const fs = require("fs");
 const path = require("path");
 const { glob } = require("glob");
 const { getI18nDir, getOpencodeDir } = require("./utils.js");
-const { step, success, error, warn, indent, info } = require("./colors.js");
+const {
+  step,
+  success,
+  error,
+  warn,
+  indent,
+  info,
+  blank,
+  log,
+  barPrefix,
+} = require("./colors.js");
 const Translator = require("./translator.js");
 
 // TUI 源码目录（主要需要汉化的部分）
@@ -423,7 +433,7 @@ ${content}
       if (newFiles.length > 0) {
         info(`发现 ${newFiles.length} 个新文件，正在 AI 分析...`);
         await this.smartProcessNewFiles(newFiles);
-        console.log("");
+        blank();
       } else if (!silent) {
         success("没有新增需要汉化的文件");
       }
@@ -650,7 +660,7 @@ ${content}
    */
   showCoverageReport() {
     const stats = this.getCoverageStats();
-    const { colors, S, out } = require("./colors.js");
+    const { colors } = require("./colors.js");
     const c = colors;
 
     step("汉化覆盖率");
@@ -668,15 +678,15 @@ ${content}
 
     const pct = stats.files.coverage.toFixed(1);
 
-    out(`${c.gray}${S.BAR}${c.reset}`);
-    out(
-      `${c.gray}${S.BAR}${c.reset}  ${coverageColor}${c.bold}${pct}%${c.reset}  ${c.gray}${"▓".repeat(filled)}${"░".repeat(empty)}${c.reset}`,
+    log(barPrefix());
+    indent(
+      `${coverageColor}${c.bold}${pct}%${c.reset}  ${c.gray}${"▓".repeat(filled)}${"░".repeat(empty)}${c.reset}`,
     );
-    out(`${c.gray}${S.BAR}${c.reset}`);
-    out(
-      `${c.gray}${S.BAR}${c.reset}  ${c.cyan}文件${c.reset} ${stats.files.configuredFiles}/${stats.files.total}    ${c.cyan}翻译${c.reset} ${stats.translations.total} 条`,
+    log(barPrefix());
+    indent(
+      `${c.cyan}文件${c.reset} ${stats.files.configuredFiles}/${stats.files.total}    ${c.cyan}翻译${c.reset} ${stats.translations.total} 条`,
     );
-    out(`${c.gray}${S.BAR}${c.reset}`);
+    log(barPrefix());
 
     const categoryInfo = {
       dialogs: { emoji: "💬", name: "对话框" },
@@ -689,8 +699,8 @@ ${content}
     for (const [cat, info] of Object.entries(categoryInfo)) {
       const data = stats.categories[cat];
       if (data) {
-        out(
-          `${c.gray}${S.BAR}${c.reset}  ${info.emoji} ${c.dim}${info.name}${c.reset}  ${data.files} 文件 / ${data.replacements} 条`,
+        indent(
+          `${info.emoji} ${c.dim}${info.name}${c.reset}  ${data.files} 文件 / ${data.replacements} 条`,
         );
       }
     }
@@ -699,36 +709,30 @@ ${content}
       const { needTranslate, noNeedTranslate } = stats.uncoveredAnalysis;
 
       if (needTranslate.length > 0) {
-        out(`${c.gray}${S.BAR}${c.reset}`);
-        out(
-          `${c.gray}${S.BAR}${c.reset}  ${c.yellow}⚠ 待翻译 ${needTranslate.length} 个文件${c.reset}`,
-        );
+        log(barPrefix());
+        indent(`${c.yellow}⚠ 待翻译 ${needTranslate.length} 个文件${c.reset}`);
         needTranslate.slice(0, 3).forEach((f) => {
           const shortPath = f.file.replace("src/cli/cmd/tui/", "");
-          out(
-            `${c.gray}${S.BAR}${c.reset}    ${c.dim}→ ${shortPath}${c.reset}`,
-          );
+          indent(`  ${c.dim}→ ${shortPath}${c.reset}`);
         });
         if (needTranslate.length > 3) {
-          out(
-            `${c.gray}${S.BAR}${c.reset}    ${c.dim}... 还有 ${needTranslate.length - 3} 个${c.reset}`,
+          indent(
+            `  ${c.dim}... 还有 ${needTranslate.length - 3} 个${c.reset}`,
           );
         }
       }
 
       if (noNeedTranslate.length > 0) {
-        out(`${c.gray}${S.BAR}${c.reset}`);
-        out(
-          `${c.gray}${S.BAR}${c.reset}  ${c.dim}○ 跳过 ${noNeedTranslate.length} 个文件（无 UI 文本）${c.reset}`,
+        log(barPrefix());
+        indent(
+          `${c.dim}○ 跳过 ${noNeedTranslate.length} 个文件（无 UI 文本）${c.reset}`,
         );
       }
     }
 
     if (stats.files.coverage >= 100) {
-      out(`${c.gray}${S.BAR}${c.reset}`);
-      out(
-        `${c.gray}${S.BAR}${c.reset}  ${c.green}✓ 所有文件都已覆盖！${c.reset}`,
-      );
+      log(barPrefix());
+      indent(`${c.green}✓ 所有文件都已覆盖！${c.reset}`);
     }
 
     return stats;
@@ -748,7 +752,7 @@ ${content}
       newTranslations.files &&
       newTranslations.files.length > 0
     ) {
-      console.log("");
+      blank();
       colorLog(`    ✨ 本次新增翻译:`, "green");
 
       for (const fileResult of newTranslations.files.slice(0, 5)) {

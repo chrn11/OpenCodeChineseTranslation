@@ -11,47 +11,71 @@ const {
   error,
   warn,
   indent,
+  blank,
   log,
+  kv,
+  groupStart,
+  groupEnd,
+  nestedStep,
+  nestedContent,
+  nestedSuccess,
+  nestedWarn,
+  nestedKv,
+  nestedFinal,
 } = require("../core/colors.js");
 const { getOpencodeDir } = require("../core/utils.js");
 const fs = require("fs");
 const path = require("path");
 
 async function run(options = {}) {
-  const { detailed = false, translate = false, dryRun = false } = options;
+  const {
+    detailed = false,
+    translate = false,
+    dryRun = false,
+    nested = false,
+  } = options;
+
+  // nested 模式下使用 clack 风格嵌套输出
+  const outputStep = nested ? nestedStep : step;
+  const outputContent = nested ? nestedContent : indent;
+  const outputSuccess = nested ? nestedSuccess : success;
+  const outputWarn = nested ? nestedWarn : warn;
+  const outputKv = nested ? nestedKv : kv;
+  const outputFinal = nested
+    ? (text, type) => nestedFinal(text, type || "success")
+    : (text, type) => (type === "warn" ? warn(text) : success(text));
 
   const i18n = new I18n();
   let hasIssues = false;
 
   // 1. 验证配置完整性
-  step("验证配置文件");
+  outputStep("验证配置文件");
   const errors = i18n.validate();
 
   if (errors.length > 0) {
     error("发现配置错误:");
-    errors.forEach((err) => indent(`- ${err}`, 2));
+    errors.forEach((err) => outputContent(`- ${err}`));
     hasIssues = true;
   } else {
-    success("配置验证通过");
+    outputSuccess("配置验证通过");
   }
 
   // 2. 获取统计信息
   const stats = i18n.getStats();
-  success(`配置文件: ${stats.totalConfigs} 个`);
-  success(`翻译条目: ${stats.totalReplacements} 条`);
+  outputKv("配置文件", `${stats.totalConfigs} 个`);
+  outputKv("翻译条目", `${stats.totalReplacements} 条`);
 
   if (detailed) {
-    indent("分类统计:", 2);
+    blank();
+    groupStart("分类统计");
     for (const [category, data] of Object.entries(stats.categories)) {
-      indent(
-        `  ${category}: ${data.count} 个文件, ${data.replacements} 条翻译`,
-        2,
-      );
+      kv(category, `${data.count} 个文件, ${data.replacements} 条翻译`);
     }
+    groupEnd();
   }
 
   // 3. 检测新增未汉化文件
-  step("检测新增文件");
+  outputStep("检测新增文件");
   const newFiles = i18n.detectNewFiles();
 
   if (newFiles.length > 0) {
@@ -62,18 +86,18 @@ async function run(options = {}) {
       ? newFiles.length
       : Math.min(newFiles.length, 10);
     for (let i = 0; i < showCount; i++) {
-      indent(`+ ${newFiles[i]}`, 2);
+      outputContent(`+ ${newFiles[i]}`);
     }
     if (!detailed && newFiles.length > 10) {
-      indent(`... 还有 ${newFiles.length - 10} 个文件`, 2);
-      indent(`使用 -d 参数查看全部`, 2);
+      outputContent(`... 还有 ${newFiles.length - 10} 个文件`);
+      outputContent(`使用 -d 参数查看全部`);
     }
   } else {
-    success("没有新增需要汉化的文件");
+    outputSuccess("没有新增需要汉化的文件");
   }
 
   // 4. 检测缺失的翻译
-  step("检测缺失翻译");
+  outputStep("检测缺失翻译");
   const missing = i18n.detectMissingTranslations();
 
   if (missing.length > 0) {
@@ -95,29 +119,29 @@ async function run(options = {}) {
     for (let i = 0; i < showFiles; i++) {
       const file = files[i];
       const items = byFile[file];
-      indent(`${file}:`, 2);
+      outputContent(`${file}:`);
 
       const showItems = detailed ? items.length : Math.min(items.length, 3);
       for (let j = 0; j < showItems; j++) {
-        indent(`  - ${items[j].full}`, 2);
+        outputContent(`  - ${items[j].full}`);
       }
       if (!detailed && items.length > 3) {
-        indent(`  ... 还有 ${items.length - 3} 处`, 2);
+        outputContent(`  ... 还有 ${items.length - 3} 处`);
       }
     }
 
     if (!detailed && files.length > 5) {
-      indent(`... 还有 ${files.length - 5} 个文件有缺失`, 2);
-      indent(`使用 -d 参数查看全部`, 2);
+      outputContent(`... 还有 ${files.length - 5} 个文件有缺失`);
+      outputContent(`使用 -d 参数查看全部`);
     }
   } else {
-    success("未发现明显缺失的翻译");
+    outputSuccess("未发现明显缺失的翻译");
   }
 
   // 5. AI 自动翻译（如果启用）
   if (translate && newFiles.length > 0) {
-    console.log("");
-    step("AI 自动翻译");
+    blank();
+    outputStep("AI 自动翻译");
 
     const translator = new Translator();
     const sourceBase = path.join(getOpencodeDir(), "packages", "opencode");
@@ -127,29 +151,29 @@ async function run(options = {}) {
     });
 
     if (result.success) {
-      success(`成功翻译 ${result.stats.successCount} 个文件`);
+      outputSuccess(`成功翻译 ${result.stats.successCount} 个文件`);
 
       if (!dryRun) {
-        indent("提示: 请运行 opencodenpm apply 应用新的翻译配置", 2);
+        outputContent("提示: 请运行 opencodenpm apply 应用新的翻译配置");
       } else {
-        indent("(dry-run 模式，未保存配置文件)", 2);
+        outputContent("(dry-run 模式，未保存配置文件)");
       }
     } else {
       warn(`翻译完成，但有 ${result.stats.failCount} 个文件失败`);
     }
   } else if (translate && newFiles.length === 0) {
-    indent("没有需要翻译的新文件", 2);
+    outputContent("没有需要翻译的新文件");
   }
 
   // 6. 汇总
-  console.log("");
+  blank();
   if (hasIssues && !translate) {
-    warn("验证完成，存在需要处理的问题");
-    indent("提示: 使用 --translate 参数自动翻译新文件", 2);
+    outputFinal("验证完成，存在需要处理的问题", "warn");
+    outputContent("提示: 使用 --translate 参数自动翻译新文件");
   } else if (hasIssues) {
-    warn("验证完成，存在需要处理的问题");
+    outputFinal("验证完成，存在需要处理的问题", "warn");
   } else {
-    success("验证完成，汉化配置完整");
+    outputFinal("验证完成，汉化配置完整", "success");
   }
 
   return !hasIssues;

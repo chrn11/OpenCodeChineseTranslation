@@ -8,6 +8,7 @@ const fs = require("fs");
 const os = require("os");
 const { execSync } = require("child_process");
 const readline = require("readline");
+const p = require("@clack/prompts");
 const {
   getBinDir,
   getOpencodeDir,
@@ -15,7 +16,14 @@ const {
   getOpencodeConfigPath,
   ensureDir,
 } = require("../core/utils.js");
-const { step, success, error, warn, indent } = require("../core/colors.js");
+const {
+  step,
+  success,
+  error,
+  warn,
+  indent,
+  blank,
+} = require("../core/colors.js");
 const { isOpencodeRunning } = require("../core/env.js");
 
 function getBuildPlatform() {
@@ -54,7 +62,7 @@ function getCompiledBinary() {
   }
 
   warn(`未找到平台 ${platform} 的构建产物`);
-  indent(`期望路径: ${distBinary}`, 2);
+  indent(`期望路径: ${distBinary}`);
   return null;
 }
 
@@ -95,7 +103,7 @@ function deploy(binaryPath) {
 
   if (existingPath) {
     targetPath = existingPath;
-    indent(`检测到已安装: ${existingPath}`, 2);
+    indent(`检测到已安装: ${existingPath}`);
   } else {
     targetPath = getDefaultInstallPath();
     ensureDir(path.dirname(targetPath));
@@ -114,7 +122,7 @@ function deploy(binaryPath) {
         error("部署失败，请以管理员身份运行");
         return null;
       }
-      indent(`需要管理员权限...`, 2);
+      indent(`需要管理员权限...`);
       try {
         execSync(
           `sudo cp "${binaryPath}" "${targetPath}" && sudo chmod 755 "${targetPath}"`,
@@ -124,7 +132,7 @@ function deploy(binaryPath) {
         return targetPath;
       } catch (sudoError) {
         error("部署失败，请手动执行:");
-        indent(`sudo cp "${binaryPath}" "${targetPath}"`, 4);
+        indent(`  sudo cp "${binaryPath}" "${targetPath}"`);
         return null;
       }
     }
@@ -143,6 +151,19 @@ function askQuestion(question) {
       resolve(answer.toLowerCase().trim());
     });
   });
+}
+
+async function confirmAction(message) {
+  if (!process.stdout.isTTY) {
+    const answer = await askQuestion(message);
+    return answer === "y" || answer === "yes";
+  }
+  const answer = await p.confirm({ message, initialValue: false });
+  if (p.isCancel(answer)) {
+    p.cancel("Cancelled");
+    return null;
+  }
+  return answer;
 }
 
 function checkAutoupdateConfig() {
@@ -183,14 +204,14 @@ async function promptAutoupdateConfig() {
   }
 
   const configPath = getOpencodeConfigPath();
-  console.log("");
+  blank();
   warn("💡 提示: 如需禁用版本更新提示");
-  indent(`配置文件: ${configPath}`, 2);
-  indent(`添加配置: "autoupdate": false`, 2);
-  console.log("");
+  indent(`配置文件: ${configPath}`);
+  indent(`添加配置: "autoupdate": false`);
+  blank();
 
-  const answer = await askQuestion("   是否自动添加此配置? (y/n): ");
-  if (answer === "y" || answer === "yes") {
+  const shouldWrite = await confirmAction("   是否自动添加此配置? (y/n): ");
+  if (shouldWrite) {
     const savedPath = setAutoupdateConfig();
     success(`已添加配置: ${savedPath}`);
   }
@@ -199,15 +220,32 @@ async function promptAutoupdateConfig() {
 async function run(options = {}) {
   step("部署 opencode");
 
-  if (isOpencodeRunning()) {
+  const runningInfo = isOpencodeRunning();
+  if (runningInfo.running) {
+    const { processes } = runningInfo;
+    const { isWindows } = getPlatform();
     warn("⚠️  检测到 OpenCode 正在运行！");
-    indent("请先关闭所有 OpenCode 窗口后再部署", 2);
-    indent("否则可能导致部署失败或文件损坏", 2);
-    console.log("");
-    const answer = await askQuestion("   是否继续部署? (y/n): ");
-    if (answer !== "y" && answer !== "yes") {
+    indent("以下进程可能阻止部署:");
+    for (const proc of processes) {
+      indent(`  PID ${proc.pid}: ${proc.command}`, 2);
+    }
+    blank();
+    const shouldKill = await confirmAction("   是否终止进程并继续部署? (y/n): ");
+    if (!shouldKill) {
       indent("已取消部署", 2);
       return false;
+    }
+    // 强制终止进程
+    const pids = processes.map((p) => p.pid).join(" ");
+    try {
+      if (isWindows) {
+        execSync(`taskkill /F /PID ${pids.split(" ").join(" /PID ")}`, { stdio: "pipe" });
+      } else {
+        execSync(`kill -9 ${pids}`, { stdio: "pipe" });
+      }
+      success("已终止相关进程");
+    } catch (e) {
+      warn("部分进程可能已退出，继续部署...");
     }
   }
 
@@ -217,13 +255,13 @@ async function run(options = {}) {
     return false;
   }
 
-  indent(`源文件: ${binaryPath}`, 2);
+  indent(`源文件: ${binaryPath}`);
 
   try {
     const result = deploy(binaryPath);
     if (result) {
-      indent("", 0);
-      indent("运行 opencode 启动", 2);
+      blank();
+      indent("运行 opencode 启动");
 
       await promptAutoupdateConfig();
     }

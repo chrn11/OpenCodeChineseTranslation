@@ -46,8 +46,12 @@ function checkBun() {
 
 function checkGit() {
   try {
-    const version = getCommandVersion("git", "--version");
-    return { ok: !!version, version };
+    const raw = getCommandVersion("git", "--version");
+    if (!raw) return { ok: false, version: null };
+    // 从 "git version 2.50.1 (Apple Git-155)" 提取 "2.50.1"
+    const match = raw.match(/(\d+\.\d+\.\d+)/);
+    const version = match ? match[1] : raw;
+    return { ok: true, version };
   } catch (e) {
     return { ok: false, version: null };
   }
@@ -70,21 +74,44 @@ function findInstalledOpencode() {
   return { installed: false, path: null };
 }
 
+/**
+ * 检测 opencode 是否正在运行
+ * @returns {{ running: boolean, processes: Array<{ pid: string, command: string }> }}
+ */
 function isOpencodeRunning() {
   const { isWindows } = getPlatform();
   try {
     if (isWindows) {
-      const result = execSync('tasklist /FI "IMAGENAME eq opencode.exe" 2>nul', {
+      const result = execSync('tasklist /FI "IMAGENAME eq opencode.exe" /FO CSV 2>nul', {
         encoding: "utf8",
         stdio: ["pipe", "pipe", "pipe"],
       });
-      return result.includes("opencode.exe");
+      const lines = result.trim().split("\n").slice(1); // 跳过标题行
+      const processes = lines
+        .filter((line) => line.includes("opencode.exe"))
+        .map((line) => {
+          const parts = line.split(",");
+          return { pid: parts[1]?.replace(/"/g, ""), command: "opencode.exe" };
+        });
+      return { running: processes.length > 0, processes };
     } else {
-      execSync("pgrep -x opencode", { stdio: ["pipe", "pipe", "pipe"] });
-      return true;
+      // 使用 ps 获取更详细的进程信息
+      const result = execSync("ps -eo pid,command | grep -E '^\\s*[0-9]+\\s+opencode' | grep -v grep", {
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      const lines = result.trim().split("\n").filter(Boolean);
+      const processes = lines.map((line) => {
+        const match = line.trim().match(/^(\d+)\s+(.+)$/);
+        if (match) {
+          return { pid: match[1], command: match[2] };
+        }
+        return null;
+      }).filter(Boolean);
+      return { running: processes.length > 0, processes };
     }
   } catch (e) {
-    return false;
+    return { running: false, processes: [] };
   }
 }
 
@@ -173,9 +200,9 @@ async function checkEnvironment(options = {}) {
     }
 
     const opencode = findInstalledOpencode();
-    const running = isOpencodeRunning();
+    const runningInfo = isOpencodeRunning();
     if (opencode.installed) {
-      success(`OpenCode 已安装${running ? ' (🟢 运行中)' : ''}`);
+      success(`OpenCode 已安装${runningInfo.running ? ' (🟢 运行中)' : ''}`);
       indent(`安装路径: ${opencode.path}`, 2);
     } else {
       warn("OpenCode 未安装");

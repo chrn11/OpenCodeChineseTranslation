@@ -5,7 +5,14 @@
 
 const p = require("@clack/prompts");
 const color = require("picocolors");
-const { step, success, error, warn, indent } = require("../core/colors.js");
+const {
+  step,
+  success,
+  error,
+  warn,
+  indent,
+  blank,
+} = require("../core/colors.js");
 const { existsSync } = require("fs");
 const { execSync } = require("child_process");
 const { cleanRepo, isGitRepo } = require("../core/git.js");
@@ -69,7 +76,7 @@ function hasLocalChanges() {
 async function run(options = {}) {
   const { auto = false } = options;
 
-  console.log("");
+  blank();
   p.intro(color.bgCyan(color.black(" 🚀 一键汉化全流程 ")));
 
   // 步骤 1: 检查源码状态
@@ -97,13 +104,13 @@ async function run(options = {}) {
       return false;
     }
 
-    await updateCmd.run({});
+    await updateCmd.run({ nested: true });
   } else {
-    indent(`源码目录: ${getOpencodeDir()}`, 2);
+    indent(`源码目录: ${getOpencodeDir()}`);
 
     if (sourceStatus.hasUpdate) {
-      indent(`本地版本: ${sourceStatus.localCommit}`, 2);
-      indent(`远程版本: ${sourceStatus.remoteCommit}`, 2);
+      indent(`本地版本: ${sourceStatus.localCommit}`);
+      indent(`远程版本: ${sourceStatus.remoteCommit}`);
       warn("源码有更新可用");
 
       let shouldUpdate = true;
@@ -120,13 +127,13 @@ async function run(options = {}) {
       }
 
       if (shouldUpdate) {
-        await updateCmd.run({});
+        await updateCmd.run({ nested: true });
       }
     } else {
       success("源码已是最新");
     }
   }
-  console.log("");
+  blank();
 
   // 步骤 2: 检查本地修改
   step("步骤 2/7: 检查本地修改");
@@ -135,22 +142,22 @@ async function run(options = {}) {
   } else {
     success("源码纯净，无修改");
   }
-  console.log("");
+  blank();
 
   // 步骤 3: 恢复纯净
   step("步骤 3/7: 恢复源码到纯净状态");
   await cleanRepo(getOpencodeDir());
-  console.log("");
+  blank();
 
   // 步骤 4: 应用汉化
   step("步骤 4/7: 应用汉化");
-  await applyCmd.run({ silent: false });
-  console.log("");
+  await applyCmd.run({ silent: false, nested: true });
+  blank();
 
   // 步骤 5: 验证汉化
   step("步骤 5/7: 验证汉化结果");
-  await verifyCmd.run({});
-  console.log("");
+  await verifyCmd.run({ nested: true });
+  blank();
 
   // 步骤 6: 编译构建
   step("步骤 6/7: 编译构建");
@@ -170,7 +177,7 @@ async function run(options = {}) {
 
   if (shouldBuild) {
     await buildCmd.run({});
-    console.log("");
+    blank();
 
     // 步骤 7: 部署全局命令
     step("步骤 7/7: 部署全局命令");
@@ -195,14 +202,14 @@ async function run(options = {}) {
     }
   } else {
     indent("跳过编译");
-    console.log("");
+    blank();
 
     // 步骤 7: 显示跳过
     step("步骤 7/7: 部署全局命令");
     indent("跳过（未编译）");
   }
 
-  console.log("");
+  blank();
   p.outro(color.green("✓ 汉化流程完成！"));
 
   return true;

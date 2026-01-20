@@ -14,11 +14,19 @@ const {
   error,
   indent,
   log,
+  barPrefix,
   info,
+  blank,
+  kv,
   colors,
-  S,
+  groupEnd,
   createSpinner,
   flushStream,
+  nestedStep,
+  nestedContent,
+  nestedSuccess,
+  nestedKv,
+  nestedFinal,
 } = require("../core/colors.js");
 
 async function run(options = {}) {
@@ -31,7 +39,17 @@ async function run(options = {}) {
     dryRun = false,
     incremental = false,
     since = null,
+    nested = false, // 从 full.js 调用时为 true，不输出独立步骤编号
   } = options;
+
+  // nested 模式下使用 clack 风格嵌套输出
+  const outputStep = nested
+    ? (msg) => nestedStep(msg.replace(/^步骤 \d+\/\d+: /, ""))
+    : step;
+  const outputContent = nested ? nestedContent : indent;
+  const outputSuccess = nested ? nestedSuccess : success;
+  const outputKv = nested ? nestedKv : kv;
+  const outputFinal = nested ? (text) => nestedFinal(text, "success") : success;
 
   const i18n = new I18n();
   const translator = new Translator();
@@ -46,7 +64,7 @@ async function run(options = {}) {
   if (!skipTranslate && !silent) {
     if (incremental) {
       // 增量翻译模式
-      step("步骤 1/4: 增量扫描（仅变更文件）");
+      outputStep("步骤 1/4: 增量扫描（仅变更文件）");
 
       const result = await translator.incrementalTranslate({
         since,
@@ -59,14 +77,14 @@ async function run(options = {}) {
       }
 
       if (dryRun) {
-        indent("(dry-run 模式，仅扫描不翻译)");
+        outputContent("(dry-run 模式，仅扫描不翻译)");
         return true;
       }
 
-      console.log("");
+      blank();
     } else {
       // 全量扫描模式
-      step("步骤 1/4: 扫描源码");
+      outputStep("步骤 1/4: 扫描源码");
 
       // 1.1 检测新增 TSX 文件
       const newFiles = i18n.detectNewFiles();
@@ -89,16 +107,16 @@ async function run(options = {}) {
         let shown = 0;
         for (const [file, texts] of untranslated) {
           if (shown >= 5) {
-            indent(`... 还有 ${untranslated.size - 5} 个文件`, 2);
+            outputContent(`... 还有 ${untranslated.size - 5} 个文件`);
             break;
           }
-          indent(`+ ${file} (${texts.length} 处)`, 2);
+          outputContent(`+ ${file} (${texts.length} 处)`);
           shown++;
         }
-        console.log("");
+        blank();
 
         if (dryRun) {
-          indent("(dry-run 模式，仅扫描不翻译)");
+          outputContent("(dry-run 模式，仅扫描不翻译)");
           return true;
         }
 
@@ -108,20 +126,16 @@ async function run(options = {}) {
         let shouldTranslate = autoTranslate;
 
         if (!autoTranslate && !silent) {
-          const inquirer = require("inquirer");
-          const { translate } = await inquirer.prompt([
-            {
-              type: "confirm",
-              name: "translate",
-              message: "是否使用 AI 自动翻译？",
-              default: true,
-            },
-          ]);
-          shouldTranslate = translate;
+          const p = require("@clack/prompts");
+          const result = await p.confirm({
+            message: "是否使用 AI 自动翻译？",
+            initialValue: true,
+          });
+          shouldTranslate = p.isCancel(result) ? false : result;
         }
 
         if (shouldTranslate) {
-          step("步骤 2/4: AI 翻译");
+          outputStep("步骤 2/4: AI 翻译");
 
           const result = await translator.scanAndTranslate({});
 
@@ -132,19 +146,19 @@ async function run(options = {}) {
           if (!result.success) {
             warn("部分翻译失败，继续处理已成功的翻译");
           }
-          console.log("");
+          blank();
         } else {
-          indent("跳过 AI 翻译");
-          console.log("");
+          outputContent("跳过 AI 翻译");
+          blank();
         }
       } else {
-        success("所有文本已有翻译");
-        console.log("");
+        outputSuccess("所有文本已有翻译");
+        blank();
 
         // 步骤 2: 显示跳过信息
-        step("步骤 2/4: AI 翻译");
-        indent("跳过（所有文本已有翻译）");
-        console.log("");
+        outputStep("步骤 2/4: AI 翻译");
+        outputContent("跳过（所有文本已有翻译）");
+        blank();
       }
     }
   }
@@ -153,49 +167,45 @@ async function run(options = {}) {
   // 步骤 3: 验证语言包
   // ========================================
   if (!skipVerify && !silent) {
-    step("步骤 3/4: 验证语言包");
+    outputStep("步骤 3/4: 验证语言包");
 
     const errors = i18n.validate();
     if (errors.length > 0) {
       error("发现配置错误:");
-      errors.forEach((err) => indent(`- ${err}`, 2));
+      errors.forEach((err) => outputContent(`- ${err}`));
       return false;
     }
 
     const stats = i18n.getStats();
-    success("配置验证通过");
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}  配置文件: ${stats.totalConfigs} 个`,
-    );
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}  翻译条目: ${stats.totalReplacements} 条`,
-    );
-    console.log("");
+    outputSuccess("配置验证通过");
+    outputKv("配置文件", `${stats.totalConfigs} 个`);
+    outputKv("翻译条目", `${stats.totalReplacements} 条`);
+    blank();
   }
 
   // ========================================
   // 步骤 4: 应用翻译 + 质量检查
   // ========================================
-  step("步骤 4/4: 应用翻译到源码");
+  outputStep("步骤 4/4: 应用翻译到源码");
 
   // 4.1 应用替换
   const result = await i18n.apply({ silent: true, skipNewFileCheck: true });
 
   if (!silent) {
-    success(
+    outputSuccess(
       `汉化应用完成: ${result.files} 个文件, ${result.replacements} 处替换`,
     );
   }
 
   // 4.2 质量检查（可选）
   if (!skipQualityCheck && result.replacements > 0) {
-    console.log("");
-    qualityPassed = await runQualityCheck(i18n, translator);
+    blank();
+    qualityPassed = await runQualityCheck(i18n, translator, outputStep);
   }
 
   // 4.3 显示覆盖率报告
   if (!silent) {
-    console.log("");
+    blank();
     await i18n.showCoverageReportWithAI(newTranslations);
   }
 
@@ -205,18 +215,22 @@ async function run(options = {}) {
 /**
  * 质量检查：验证替换后的代码是否有问题
  */
-async function runQualityCheck(i18n, translator) {
+async function runQualityCheck(i18n, translator, outputStep) {
   const c = colors;
 
   await flushStream();
-  step("质量检查");
+
+  // 主 spinner：显示质量检查正在进行
+  const mainSpinner = createSpinner("质量检查");
+  mainSpinner.start();
 
   let allPassed = true;
   const issues = [];
 
+  const results = [];
+
   // 1. TypeScript 语法检查
-  const spinner1 = createSpinner("检查 TypeScript 语法");
-  spinner1.start();
+  mainSpinner.update("质量检查: TypeScript 语法...");
 
   try {
     const tscPath = path.join(i18n.opencodeDir, "node_modules", ".bin", "tsc");
@@ -228,43 +242,39 @@ async function runQualityCheck(i18n, translator) {
       timeout: 60000,
     });
 
-    spinner1.success("TypeScript 语法正确");
+    results.push({ ok: true, text: "TypeScript 语法正确" });
   } catch (e) {
     const stderr = e.stderr?.toString() || "";
     const errorLines = stderr.split("\n").filter((l) => l.includes("error TS"));
 
     if (errorLines.length > 0) {
       allPassed = false;
-      spinner1.error(`发现 ${errorLines.length} 个 TypeScript 错误`);
+      results.push({
+        ok: false,
+        text: `发现 ${errorLines.length} 个 TypeScript 错误`,
+      });
 
       const translationErrors = errorLines.filter(
         (l) => l.includes(".tsx") && (l.includes("tui") || l.includes("cli")),
       );
 
       if (translationErrors.length > 0) {
-        console.log(
-          `${c.gray}${S.BAR}${c.reset}    ${c.yellow}可能与翻译相关的错误:${c.reset}`,
-        );
         translationErrors.slice(0, 3).forEach((err) => {
           const match = err.match(
             /([^/]+\.tsx)\((\d+),(\d+)\).*error TS\d+: (.+)/,
           );
           if (match) {
-            console.log(
-              `${c.gray}${S.BAR}${c.reset}    ${c.dim}→ ${match[1]}:${match[2]} - ${match[4].slice(0, 50)}${c.reset}`,
-            );
             issues.push({ file: match[1], line: match[2], message: match[4] });
           }
         });
       }
     } else {
-      spinner1.success("TypeScript 语法正确");
+      results.push({ ok: true, text: "TypeScript 语法正确" });
     }
   }
 
   // 2. 检查关键文件完整性
-  const spinner2 = createSpinner("检查文件完整性");
-  spinner2.start();
+  mainSpinner.update("质量检查: 文件完整性...");
 
   const criticalFiles = [
     "src/cli/cmd/tui/app.tsx",
@@ -283,15 +293,14 @@ async function runQualityCheck(i18n, translator) {
   }
 
   if (missingFiles === 0) {
-    spinner2.success("关键文件完整");
+    results.push({ ok: true, text: "关键文件完整" });
   } else {
-    spinner2.error(`缺失 ${missingFiles} 个关键文件`);
+    results.push({ ok: false, text: `缺失 ${missingFiles} 个关键文件` });
     allPassed = false;
   }
 
   // 3. 检查替换后的中文是否正确闭合
-  const spinner3 = createSpinner("检查字符串闭合");
-  spinner3.start();
+  mainSpinner.update("质量检查: 字符串格式...");
 
   const configs = i18n.loadConfig();
   let unclosedCount = 0;
@@ -300,30 +309,22 @@ async function runQualityCheck(i18n, translator) {
     if (!config.replacements) continue;
 
     for (const [original, translated] of Object.entries(config.replacements)) {
-      // 检查 JSX 标签是否匹配（保留这个检查，比较有意义）
       const originalTags = (original.match(/<[^>]+>/g) || []).length;
       const translatedTags = (translated.match(/<[^>]+>/g) || []).length;
 
       if (originalTags !== translatedTags) {
         unclosedCount++;
         if (unclosedCount <= 3) {
-          console.log(
-            `${c.gray}${S.BAR}${c.reset}    ${c.yellow}⚠${c.reset} JSX 标签不匹配: "${original.slice(0, 30)}..."`,
-          );
           issues.push({ type: "jsx", original, translated });
         }
       }
 
-      // 检查花括号是否匹配（重要：{highlight} 等模板变量）
       const originalBraces = (original.match(/[{}]/g) || []).length;
       const translatedBraces = (translated.match(/[{}]/g) || []).length;
 
       if (originalBraces !== translatedBraces) {
         unclosedCount++;
         if (unclosedCount <= 3) {
-          console.log(
-            `${c.gray}${S.BAR}${c.reset}    ${c.yellow}⚠${c.reset} 花括号不匹配: "${original.slice(0, 30)}..."`,
-          );
           issues.push({ type: "brace", original, translated });
         }
       }
@@ -331,32 +332,39 @@ async function runQualityCheck(i18n, translator) {
   }
 
   if (unclosedCount === 0) {
-    spinner3.success("字符串格式正确");
+    results.push({ ok: true, text: "字符串格式正确" });
   } else {
-    spinner3.warn(`发现 ${unclosedCount} 个潜在问题`);
+    results.push({ ok: "warn", text: `发现 ${unclosedCount} 个潜在问题` });
+  }
+
+  // 清除 spinner 并输出结果
+  mainSpinner.clear();
+
+  for (const r of results) {
+    if (r.ok === true) {
+      indent(`${c.green}✓${c.reset} ${r.text}`);
+    } else if (r.ok === "warn") {
+      indent(`${c.yellow}⚠${c.reset} ${r.text}`);
+    } else {
+      indent(`${c.red}✗${c.reset} ${r.text}`);
+    }
   }
 
   // 总结
-  console.log(`${c.gray}${S.BAR}${c.reset}`);
+  log(barPrefix());
 
   if (allPassed && issues.length === 0) {
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}  ${c.green}${c.bold}✓ 质量检查通过${c.reset}`,
-    );
+    indent(`${c.green}${c.bold}✓ 质量检查通过${c.reset}`);
   } else if (issues.length > 0 && allPassed) {
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}  ${c.yellow}${c.bold}⚠ 发现 ${issues.length} 个潜在问题，但不影响编译${c.reset}`,
+    indent(
+      `${c.yellow}${c.bold}⚠ 发现 ${issues.length} 个潜在问题，但不影响编译${c.reset}`,
     );
   } else {
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}  ${c.red}${c.bold}✗ 质量检查失败${c.reset}`,
-    );
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}  ${c.dim}建议: 运行 'opencodenpm build' 查看详细错误${c.reset}`,
-    );
+    indent(`${c.red}${c.bold}✗ 质量检查失败${c.reset}`);
+    indent(`${c.dim}建议: 运行 'opencodenpm build' 查看详细错误${c.reset}`);
   }
 
-  console.log(`${c.gray}└${c.reset}`);
+  groupEnd();
 
   return allPassed;
 }

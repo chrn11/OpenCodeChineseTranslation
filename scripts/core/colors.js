@@ -66,6 +66,18 @@ function out(message) {
   processQueue();
 }
 
+function blank() {
+  out("");
+}
+
+function barPrefix() {
+  return `${colors.gray}${S.BAR}${colors.reset}`;
+}
+
+function kv(key, value) {
+  out(`${barPrefix()}  ${colors.dim}${key}${colors.reset}  ${value}`);
+}
+
 function flushStream() {
   return new Promise((resolve) => {
     const check = () => {
@@ -82,7 +94,9 @@ function log(message, color = "reset") {
 
 function step(title) {
   out("");
-  out(`${colors.cyan}${S.STEP}${colors.reset} ${colors.bold}${title}${colors.reset}`);
+  out(
+    `${colors.cyan}${S.STEP}${colors.reset} ${colors.bold}${title}${colors.reset}`,
+  );
 }
 
 function success(message) {
@@ -107,7 +121,9 @@ function info(message) {
 
 function skip(message) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(`${bar} ${colors.gray}${S.SKIP}${colors.reset} ${colors.gray}${message}${colors.reset}`);
+  out(
+    `${bar} ${colors.gray}${S.SKIP}${colors.reset} ${colors.gray}${message}${colors.reset}`,
+  );
 }
 
 function indent(message, level = 1) {
@@ -123,11 +139,68 @@ function separator(char = "─", length = 40) {
 
 function groupStart(title) {
   out("");
-  out(`${colors.gray}${S.BAR_START}${colors.reset} ${colors.bold}${title}${colors.reset}`);
+  out(
+    `${colors.gray}${S.BAR_START}${colors.reset} ${colors.bold}${title}${colors.reset}`,
+  );
 }
 
 function groupEnd() {
   out(`${colors.gray}${S.BAR_END}${colors.reset}`);
+}
+
+// ============================================
+// 嵌套输出函数（用于 nested 模式）
+// ============================================
+
+function nestedStep(title) {
+  const bar = `${colors.gray}${S.BAR}${colors.reset}`;
+  out(`${bar}  ${colors.cyan}├─${colors.reset} ${title}`);
+}
+
+function nestedContent(message) {
+  const bar = `${colors.gray}${S.BAR}${colors.reset}`;
+  out(
+    `${bar}  ${colors.gray}│${colors.reset}  ${colors.dim}${message}${colors.reset}`,
+  );
+}
+
+function nestedSuccess(message) {
+  const bar = `${colors.gray}${S.BAR}${colors.reset}`;
+  out(
+    `${bar}  ${colors.gray}│${colors.reset}  ${colors.green}${S.SUCCESS}${colors.reset} ${message}`,
+  );
+}
+
+function nestedWarn(message) {
+  const bar = `${colors.gray}${S.BAR}${colors.reset}`;
+  out(
+    `${bar}  ${colors.gray}│${colors.reset}  ${colors.yellow}${S.WARN}${colors.reset} ${message}`,
+  );
+}
+
+function nestedError(message) {
+  const bar = `${colors.gray}${S.BAR}${colors.reset}`;
+  out(
+    `${bar}  ${colors.gray}│${colors.reset}  ${colors.red}${S.ERROR}${colors.reset} ${message}`,
+  );
+}
+
+function nestedKv(key, value) {
+  const bar = `${colors.gray}${S.BAR}${colors.reset}`;
+  out(
+    `${bar}  ${colors.gray}│${colors.reset}  ${colors.dim}${key}${colors.reset}  ${value}`,
+  );
+}
+
+function nestedFinal(message, type = "success") {
+  const bar = `${colors.gray}${S.BAR}${colors.reset}`;
+  const icon =
+    type === "success"
+      ? `${colors.green}${S.SUCCESS}${colors.reset}`
+      : type === "warn"
+        ? `${colors.yellow}${S.WARN}${colors.reset}`
+        : `${colors.red}${S.ERROR}${colors.reset}`;
+  out(`${bar}  ${colors.gray}└─${colors.reset} ${icon} ${message}`);
 }
 
 const coloredLog = {
@@ -147,11 +220,6 @@ const coloredLog = {
 // Knight Rider 扫描动画算法（移植自 OpenCode）
 // ============================================
 
-/**
- * 解析 HEX 颜色为 RGB
- * @param {string} hex - HEX 颜色值，如 "#ff4fd8"
- * @returns {{r: number, g: number, b: number}}
- */
 function hexToRgb(hex) {
   const h = hex.replace("#", "");
   return {
@@ -161,23 +229,10 @@ function hexToRgb(hex) {
   };
 }
 
-/**
- * 生成 ANSI 24-bit 前景色转义序列
- * @param {number} r - 红色分量 (0-255)
- * @param {number} g - 绿色分量 (0-255)
- * @param {number} b - 蓝色分量 (0-255)
- * @returns {string}
- */
 function rgb(r, g, b) {
   return `\x1b[38;2;${r};${g};${b}m`;
 }
 
-/**
- * 从亮色派生渐变尾巴颜色（Alpha 衰减模拟）
- * @param {string} brightColor - HEX 亮色
- * @param {number} steps - 尾巴级数（默认 6）
- * @returns {Array<{r: number, g: number, b: number, a: number}>}
- */
 function deriveTrailColors(brightColor, steps = 6) {
   const base = hexToRgb(brightColor);
   const trailColors = [];
@@ -186,15 +241,12 @@ function deriveTrailColors(brightColor, steps = 6) {
     let alpha, brightnessFactor;
 
     if (i === 0) {
-      // 头部：全亮度
       alpha = 1.0;
       brightnessFactor = 1.0;
     } else if (i === 1) {
-      // 轻微泛光效果
       alpha = 0.9;
       brightnessFactor = 1.15;
     } else {
-      // 指数衰减
       alpha = Math.pow(0.65, i - 1);
       brightnessFactor = 1.0;
     }
@@ -210,12 +262,6 @@ function deriveTrailColors(brightColor, steps = 6) {
   return trailColors;
 }
 
-/**
- * 从亮色派生非活动块颜色
- * @param {string} brightColor - HEX 亮色
- * @param {number} factor - 暗度因子（默认 0.6）
- * @returns {{r: number, g: number, b: number, a: number}}
- */
 function deriveInactiveColor(brightColor, factor = 0.6) {
   const base = hexToRgb(brightColor);
   return {
@@ -226,13 +272,6 @@ function deriveInactiveColor(brightColor, factor = 0.6) {
   };
 }
 
-/**
- * 计算扫描器状态（位置、方向、停留）
- * @param {number} frameIndex - 当前帧索引
- * @param {number} totalChars - 总宽度
- * @param {object} options - 配置选项
- * @returns {object} 扫描器状态
- */
 function getScannerState(frameIndex, totalChars, options) {
   const { holdStart = 30, holdEnd = 9 } = options;
 
@@ -241,7 +280,6 @@ function getScannerState(frameIndex, totalChars, options) {
   const backwardFrames = totalChars - 1;
 
   if (frameIndex < forwardFrames) {
-    // 向右移动
     return {
       activePosition: frameIndex,
       isHolding: false,
@@ -252,7 +290,6 @@ function getScannerState(frameIndex, totalChars, options) {
       isMovingForward: true,
     };
   } else if (frameIndex < forwardFrames + holdEndFrames) {
-    // 右端停留
     return {
       activePosition: totalChars - 1,
       isHolding: true,
@@ -263,7 +300,6 @@ function getScannerState(frameIndex, totalChars, options) {
       isMovingForward: true,
     };
   } else if (frameIndex < forwardFrames + holdEndFrames + backwardFrames) {
-    // 向左移动
     const backwardIndex = frameIndex - forwardFrames - holdEndFrames;
     return {
       activePosition: totalChars - 2 - backwardIndex,
@@ -275,7 +311,6 @@ function getScannerState(frameIndex, totalChars, options) {
       isMovingForward: false,
     };
   } else {
-    // 左端停留
     return {
       activePosition: 0,
       isHolding: true,
@@ -288,32 +323,21 @@ function getScannerState(frameIndex, totalChars, options) {
   }
 }
 
-/**
- * 计算某位置的颜色索引（尾巴等级）
- * @param {number} charIndex - 字符位置
- * @param {number} trailLength - 尾巴长度
- * @param {object} state - 扫描器状态
- * @returns {number} 颜色索引（-1 表示非活动）
- */
 function calculateColorIndex(charIndex, trailLength, state) {
   const { activePosition, isHolding, holdProgress, isMovingForward } = state;
 
-  // 计算方向性距离（正值表示在尾巴后面）
   const directionalDistance = isMovingForward
     ? activePosition - charIndex
     : charIndex - activePosition;
 
-  // 停留时尾巴逐渐消失
   if (isHolding) {
     return directionalDistance + holdProgress;
   }
 
-  // 正常移动时显示渐变尾巴
   if (directionalDistance > 0 && directionalDistance < trailLength) {
     return directionalDistance;
   }
 
-  // 活动位置显示最亮颜色
   if (directionalDistance === 0) {
     return 0;
   }
@@ -321,11 +345,6 @@ function calculateColorIndex(charIndex, trailLength, state) {
   return -1;
 }
 
-/**
- * 将颜色应用 Alpha 混合（与黑色背景混合）
- * @param {{r: number, g: number, b: number, a: number}} color
- * @returns {{r: number, g: number, b: number}}
- */
 function applyAlpha(color) {
   return {
     r: Math.round(color.r * color.a),
@@ -334,9 +353,6 @@ function applyAlpha(color) {
   };
 }
 
-/**
- * Knight Rider 扫描动画配置
- */
 const knightRiderConfig = {
   width: 14,
   holdStart: 30,
@@ -355,9 +371,8 @@ const knightRiderConfig = {
 // ============================================
 
 const spinnerThemes = {
-  // OpenCode Knight Rider 扫描动画（默认主题）
   opencode: {
-    frames: null, // 动态生成
+    frames: null,
     success: "██████████████",
     fail: "░░░░░░░░░░░░░░",
   },
@@ -537,7 +552,7 @@ class Spinner {
     this.current = 0;
 
     if (!process.stdout.isTTY) {
-      console.log(`${colors.gray}${S.BAR}${colors.reset}  ${this.text}...`);
+      out(`${colors.gray}${S.BAR}${colors.reset}  ${this.text}...`);
       return this;
     }
 
@@ -583,7 +598,7 @@ class Spinner {
     if (!process.stdout.isTTY) {
       const icon = isSuccess ? "✓" : "✗";
       const iconColor = isSuccess ? colors.green : colors.red;
-      console.log(
+      out(
         `${colors.gray}${S.BAR}${colors.reset}  ${iconColor}${icon}${colors.reset} ${finalText || this.text}`,
       );
       return this;
@@ -641,9 +656,11 @@ class Spinner {
     }
     const bar = `${colors.gray}${S.BAR}${colors.reset}`;
     if (process.stdout.isTTY) {
-      process.stdout.write(`\r${bar}${colors.yellow}${S.WARN}${colors.reset} ${text}        \n`);
+      process.stdout.write(
+        `\r${bar}${colors.yellow}${S.WARN}${colors.reset} ${text}        \n`,
+      );
     } else {
-      console.log(`${bar}${colors.yellow}${S.WARN}${colors.reset} ${text}`);
+      out(`${bar}${colors.yellow}${S.WARN}${colors.reset} ${text}`);
     }
     return this;
   }
@@ -669,11 +686,84 @@ function createSpinner(text, theme = "opencode") {
   return new Spinner(text, theme);
 }
 
+function stripAnsi(str) {
+  return str.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
+function isFullWidth(code) {
+  if (Number.isNaN(code)) return false;
+  return (
+    code >= 0x1100 &&
+    (code <= 0x115f ||
+      code === 0x2329 ||
+      code === 0x232a ||
+      (code >= 0x2e80 && code <= 0xa4cf && code !== 0x303f) ||
+      (code >= 0xac00 && code <= 0xd7a3) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0xfe10 && code <= 0xfe19) ||
+      (code >= 0xfe30 && code <= 0xfe6f) ||
+      (code >= 0xff00 && code <= 0xff60) ||
+      (code >= 0xffe0 && code <= 0xffe6) ||
+      (code >= 0x1f300 && code <= 0x1f64f) ||
+      (code >= 0x1f680 && code <= 0x1f6ff) ||
+      (code >= 0x1f900 && code <= 0x1f9ff) ||
+      (code >= 0x20000 && code <= 0x2fffd) ||
+      (code >= 0x30000 && code <= 0x3fffd))
+  );
+}
+
+function isCombining(code) {
+  if (Number.isNaN(code)) return false;
+  return (
+    (code >= 0x0300 && code <= 0x036f) ||
+    (code >= 0xfe00 && code <= 0xfe0f) ||
+    (code >= 0x20d0 && code <= 0x20ff) ||
+    (code >= 0x200b && code <= 0x200f)
+  );
+}
+
+function displayWidth(str) {
+  const stripped = stripAnsi(str);
+  let width = 0;
+  for (const char of stripped) {
+    const code = char.codePointAt(0);
+    if (code == null) continue;
+    if (isCombining(code)) continue;
+    width += isFullWidth(code) ? 2 : 1;
+  }
+  return width;
+}
+
+function padLabel(label, targetWidth) {
+  const padChar = " ";
+  const w = displayWidth(label);
+  if (w >= targetWidth) return label;
+  return label + padChar.repeat(targetWidth - w);
+}
+
+function statusBadge(status) {
+  switch (status) {
+    case "success":
+      return `${colors.green}${S.SUCCESS}${colors.reset}`;
+    case "error":
+      return `${colors.red}${S.ERROR}${colors.reset}`;
+    case "warn":
+      return `${colors.yellow}${S.WARN}${colors.reset}`;
+    case "info":
+      return `${colors.blue}${S.INFO}${colors.reset}`;
+    case "skip":
+      return `${colors.gray}${S.SKIP}${colors.reset}`;
+    default:
+      return `${colors.gray}${S.SKIP}${colors.reset}`;
+  }
+}
+
 module.exports = {
   colors,
   colorize,
   log,
   separator,
+  blank,
   step,
   success,
   error,
@@ -683,10 +773,23 @@ module.exports = {
   indent,
   groupStart,
   groupEnd,
+  padLabel,
+  kv,
+  barPrefix,
+  statusBadge,
+  nestedStep,
+  nestedContent,
+  nestedSuccess,
+  nestedWarn,
+  nestedError,
+  nestedKv,
+  nestedFinal,
   createSpinner,
   Spinner,
   S,
   out,
   flushStream,
+  stripAnsi,
+  displayWidth,
   ...coloredLog,
 };

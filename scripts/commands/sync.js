@@ -12,7 +12,9 @@ const {
   error,
   warn,
   indent,
+  blank,
   log,
+  kv,
 } = require("../core/colors.js");
 const {
   getProjectDir,
@@ -180,7 +182,7 @@ async function run(options = {}) {
   const oldCommit = getCurrentCommit();
 
   if (oldVersion) {
-    indent(`当前版本: ${oldVersion}`, 2);
+    indent(`当前版本: ${oldVersion}`);
   }
 
   // 2. 更新源码（如果不是仅检查模式）
@@ -207,21 +209,21 @@ async function run(options = {}) {
   if (versionChanged) {
     success(`版本更新: ${oldVersion || "未知"} → ${newVersion}`);
   } else {
-    indent(`版本未变化: ${newVersion}`, 2);
+    indent(`版本未变化: ${newVersion}`);
   }
 
   // 5. 检查新增文件
   step("检查汉化覆盖率");
   const { newFiles, removedFiles, total, configured } = checkNewFiles();
 
-  indent(`源码文件: ${total} 个`, 2);
-  indent(`已配置: ${configured} 个`, 2);
+  kv("源码文件", `${total} 个`);
+  kv("已配置", `${configured} 个`);
 
   if (newFiles.length > 0) {
     warn(`发现 ${newFiles.length} 个新增文件需要汉化:`);
-    newFiles.slice(0, 15).forEach((f) => indent(`+ ${f}`, 2));
+    newFiles.slice(0, 15).forEach((f) => indent(`+ ${f}`));
     if (newFiles.length > 15) {
-      indent(`... 还有 ${newFiles.length - 15} 个文件`, 2);
+      indent(`... 还有 ${newFiles.length - 15} 个文件`);
     }
   } else {
     success("没有新增文件需要汉化");
@@ -229,7 +231,7 @@ async function run(options = {}) {
 
   if (removedFiles.length > 0) {
     warn(`发现 ${removedFiles.length} 个文件已被删除:`);
-    removedFiles.slice(0, 10).forEach((f) => indent(`- ${f}`, 2));
+    removedFiles.slice(0, 10).forEach((f) => indent(`- ${f}`));
   }
 
   // 6. 如果是仅检查模式，到此为止
@@ -253,12 +255,12 @@ async function run(options = {}) {
   }
 
   // 8. 总结
-  console.log("");
+  blank();
   step("同步完成");
 
   if (newFiles.length > 0) {
     warn(`请为 ${newFiles.length} 个新增文件添加汉化配置！`);
-    indent("提示: 运行 opencodenpm verify -d 查看详情", 2);
+    indent("提示: 运行 opencodenpm verify -d 查看详情");
   }
 
   return true;

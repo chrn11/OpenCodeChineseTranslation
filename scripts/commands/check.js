@@ -13,7 +13,9 @@ const {
   error,
   warn,
   indent,
+  blank,
   log,
+  kv,
 } = require("../core/colors.js");
 const {
   getOpencodeDir,
@@ -174,7 +176,7 @@ async function run(options = {}) {
 
   // 获取已配置的翻译
   const configuredTranslations = getConfiguredTranslations();
-  indent(`已加载 ${configuredTranslations.size} 个文件的翻译配置`, 2);
+  kv("已加载配置", `${configuredTranslations.size} 个文件`);
 
   // 确定要扫描的目录
   const scanDir = tuiOnly
@@ -188,7 +190,7 @@ async function run(options = {}) {
 
   // 扫描所有 TSX 文件
   const files = glob.sync("**/*.tsx", { cwd: scanDir });
-  indent(`扫描 ${files.length} 个 TSX 文件...`, 2);
+  kv("扫描文件", `${files.length} 个 TSX`);
 
   const missing = [];
   let scannedCount = 0;
@@ -217,7 +219,7 @@ async function run(options = {}) {
     }
   }
 
-  console.log("");
+  blank();
 
   // 按文件分组输出结果
   if (missing.length === 0) {
@@ -226,7 +228,7 @@ async function run(options = {}) {
   }
 
   warn(`发现 ${missing.length} 处可能遗漏的翻译:`);
-  console.log("");
+  blank();
 
   // 按文件分组
   const byFile = {};
@@ -247,21 +249,20 @@ async function run(options = {}) {
       break;
     }
 
-    indent(`📄 ${file} (${items.length} 处):`, 2);
+    indent(`📄 ${file} (${items.length} 处):`);
 
     const showItems = verbose ? items : items.slice(0, 3);
     for (const item of showItems) {
       indent(
-        `[${item.type}] L${item.line}: "${item.text.substring(0, 50)}${item.text.length > 50 ? "..." : ""}"`,
-        4,
+        `  [${item.type}] L${item.line}: "${item.text.substring(0, 50)}${item.text.length > 50 ? "..." : ""}"`,
       );
     }
 
     if (!verbose && items.length > 3) {
-      indent(`... 还有 ${items.length - 3} 处`, 4);
+      indent(`  ... 还有 ${items.length - 3} 处`);
     }
 
-    console.log("");
+    blank();
     shown++;
   }
 
@@ -283,9 +284,9 @@ async function run(options = {}) {
   }
 
   // 提示
-  console.log("");
-  indent("提示: 使用 -v 参数查看详细信息", 2);
-  indent("提示: 使用 -o report.json 导出完整报告", 2);
+  blank();
+  indent("提示: 使用 -v 参数查看详细信息");
+  indent("提示: 使用 -o report.json 导出完整报告");
 
   return true;
 }

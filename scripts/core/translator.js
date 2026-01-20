@@ -20,9 +20,13 @@ const {
   error,
   warn,
   indent,
+  log,
+  blank,
   createSpinner,
   colors,
   S,
+  barPrefix,
+  groupEnd,
 } = require("./colors.js");
 const { getI18nDir, getOpencodeDir, getProjectDir } = require("./utils.js");
 
@@ -44,12 +48,21 @@ class Translator {
     this.failedModels = new Set();
 
     this.MODEL_PRIORITY = [
+      // 质量优先：Pro/High 级别模型
+      "claude-sonnet-4-5",
+      "claude-opus",
+      "gpt-4o",
+      "gpt-4",
+      "gemini-3-pro-high",
+      "gemini-3-pro",
+      "gemini-2.5-pro",
+      // 平衡模型
+      "gemini-3-pro-low",
       "gemini-2.5-flash",
       "gemini-3-flash",
-      "gemini-3-pro-low",
+      // 轻量模型
       "gemini-2.5-flash-lite",
-      "gemini-3-pro-high",
-      "claude-sonnet-4-5",
+      "gpt-3.5",
     ];
   }
 
@@ -876,7 +889,7 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
     }
 
     warn(`发现 ${untranslated.size} 个文件共 ${totalTexts} 处未翻译文本`);
-    console.log("");
+    blank();
 
     if (dryRun) {
       // 仅显示，不翻译
@@ -921,7 +934,7 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
       }
     }
 
-    console.log("");
+    blank();
 
     // 显示统计信息
     const statsInfo = [];
@@ -1139,7 +1152,7 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
           ? "yellow"
           : "red";
 
-    console.log("");
+    blank();
     log(
       `  文本覆盖: [${bar}] ${stats.overall.coverage.toFixed(1)}%`,
       coverageColor,
@@ -1148,7 +1161,7 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
       `  已翻译: ${stats.overall.translatedTexts} / ${stats.overall.totalTexts} 处`,
     );
 
-    console.log("");
+    blank();
     log(
       `  文件覆盖: ${stats.files.coveredFiles} / ${stats.files.totalFiles} 个文件 (${stats.files.coverage.toFixed(1)}%)`,
     );
@@ -1156,7 +1169,7 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
     // 如果有未完成的文件，显示前几个
     const incomplete = stats.details.filter((f) => f.missing > 0);
     if (incomplete.length > 0 && verbose) {
-      console.log("");
+      blank();
       warn(`未完成的文件 (${incomplete.length} 个):`);
       incomplete.slice(0, 5).forEach((f) => {
         const shortPath = f.file.replace("src/cli/cmd/tui/", "");
@@ -1237,7 +1250,7 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
         });
 
         res.on("end", () => {
-          console.log(""); // 换行
+          blank(); // 换行
           resolve(fullContent);
         });
       });
@@ -1340,10 +1353,10 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
 
       let firstChar = true;
 
-      await this.streamAISummaryWrapped(prompt, 50, () => {
+      const result = await this.streamAISummaryWrapped(prompt, 50, () => {
         if (firstChar) {
           spinner.clear();
-          process.stdout.write(`${c.gray}${S.BAR}${c.reset}  `);
+          process.stdout.write(`${barPrefix()}  `);
           firstChar = false;
         }
       });
@@ -1352,21 +1365,24 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
         spinner.clear();
       }
 
-      console.log("");
-      console.log(`${c.gray}└${c.reset}`);
+      if (result === null) {
+        indent(`${c.dim}(未配置 AI API，跳过总结)${c.reset}`);
+      } else if (!result || result.trim() === "") {
+        indent(`${c.dim}(AI 返回为空，可能是网络问题或 API 限流)${c.reset}`);
+      }
+
+      blank();
+      groupEnd();
     } catch (err) {
       spinner.fail("思考失败");
       const errMsg = err.message || String(err);
       indent(`${c.dim}(AI 总结失败: ${errMsg.slice(0, 50)})${c.reset}`);
-      console.log(`${c.gray}└${c.reset}`);
+      groupEnd();
     }
   }
 
   /**
-   * 流式输出 AI 总结（带自动换行）
-   * @param {string} prompt - 提示词
-   * @param {number} maxWidth - 每行最大宽度
-   * @param {Function} onFirstChar - 收到第一个字符时的回调（用于清除 spinner）
+   * 流式输出 AI 总结（带自动换行和打字机效果）
    */
   async streamAISummaryWrapped(prompt, maxWidth = 50, onFirstChar = null) {
     if (!this.checkConfig()) {
@@ -1407,6 +1423,95 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
       let fullContent = "";
       let currentLineLength = 0;
       let isFirstChar = true;
+      const charQueue = [];
+      let isProcessing = false;
+      let streamEnded = false;
+
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      // 若隐若现的渐变尾巴动画帧（从亮到暗再到亮）
+      const tailFrames = [
+        "\x1b[97m░\x1b[0m", // 亮白
+        "\x1b[37m▒\x1b[0m", // 白
+        "\x1b[90m▓\x1b[0m", // 暗灰
+        "\x1b[90m█\x1b[0m", // 暗灰
+        "\x1b[90m▓\x1b[0m", // 暗灰
+        "\x1b[37m▒\x1b[0m", // 白
+      ];
+      let tailIndex = 0;
+      let tailTimer = null;
+      let tailVisible = false;
+
+      const updateTail = () => {
+        if (!tailVisible) return;
+        process.stdout.write("\b");
+        process.stdout.write(tailFrames[tailIndex]);
+        tailIndex = (tailIndex + 1) % tailFrames.length;
+      };
+
+      const startTailAnimation = () => {
+        if (tailTimer) return;
+        tailVisible = true;
+        process.stdout.write(tailFrames[tailIndex]);
+        tailIndex = (tailIndex + 1) % tailFrames.length;
+        tailTimer = setInterval(updateTail, 80);
+      };
+
+      const stopTailAnimation = () => {
+        if (tailTimer) {
+          clearInterval(tailTimer);
+          tailTimer = null;
+        }
+        if (tailVisible) {
+          process.stdout.write("\b \b");
+          tailVisible = false;
+        }
+      };
+
+      const processQueue = async () => {
+        if (isProcessing) return;
+        isProcessing = true;
+
+        while (charQueue.length > 0) {
+          const char = charQueue.shift();
+
+          if (isFirstChar && onFirstChar) {
+            onFirstChar();
+            isFirstChar = false;
+            startTailAnimation();
+          }
+
+          if (char === "\n") {
+            stopTailAnimation();
+            process.stdout.write(`\n${barPrefix()}  `);
+            startTailAnimation();
+            currentLineLength = 0;
+          } else {
+            stopTailAnimation();
+            process.stdout.write(char);
+            startTailAnimation();
+            const charWidth = /[\u4e00-\u9fa5]/.test(char) ? 2 : 1;
+            currentLineLength += charWidth;
+
+            if (currentLineLength >= maxWidth) {
+              stopTailAnimation();
+              process.stdout.write(`\n${barPrefix()}  `);
+              startTailAnimation();
+              currentLineLength = 0;
+            }
+          }
+
+          fullContent += char;
+          await sleep(25);
+        }
+
+        isProcessing = false;
+
+        if (streamEnded && charQueue.length === 0) {
+          stopTailAnimation();
+          resolve(fullContent);
+        }
+      };
 
       const req = protocol.request(options, (res) => {
         res.on("data", (chunk) => {
@@ -1420,28 +1525,10 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
                 const json = JSON.parse(data);
                 const content = json.choices?.[0]?.delta?.content;
                 if (content) {
-                  // 第一个字符时触发回调（清除 spinner）
-                  if (isFirstChar && onFirstChar) {
-                    onFirstChar();
-                    isFirstChar = false;
-                  }
-
                   for (const char of content) {
-                    if (char === "\n") {
-                      process.stdout.write("\n\x1b[90m│\x1b[0m  ");
-                      currentLineLength = 0;
-                    } else {
-                      process.stdout.write(char);
-                      const charWidth = /[\u4e00-\u9fa5]/.test(char) ? 2 : 1;
-                      currentLineLength += charWidth;
-
-                      if (currentLineLength >= maxWidth) {
-                        process.stdout.write("\n\x1b[90m│\x1b[0m  ");
-                        currentLineLength = 0;
-                      }
-                    }
+                    charQueue.push(char);
                   }
-                  fullContent += content;
+                  processQueue();
                 }
               } catch (e) {
                 // 忽略解析错误
@@ -1451,7 +1538,11 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
         });
 
         res.on("end", () => {
-          resolve(fullContent);
+          streamEnded = true;
+          if (charQueue.length === 0 && !isProcessing) {
+            stopTailAnimation();
+            resolve(fullContent);
+          }
         });
       });
 
@@ -1565,7 +1656,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
     }
 
     // 显示变更文件
-    console.log("");
+    blank();
     for (const file of changedFiles.slice(0, 10)) {
       const shortPath = file.replace("packages/opencode/", "");
       indent(`• ${shortPath}`, 2);
@@ -1573,7 +1664,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
     if (changedFiles.length > 10) {
       indent(`... 还有 ${changedFiles.length - 10} 个文件`, 2);
     }
-    console.log("");
+    blank();
 
     // 扫描变更文件中的未翻译文本
     step("扫描变更文件中的未翻译文本");
@@ -1624,7 +1715,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
     warn(`发现 ${untranslated.size} 个文件共 ${totalTexts} 处未翻译文本`);
 
     if (dryRun) {
-      console.log("");
+      blank();
       for (const [file, texts] of untranslated) {
         const shortPath = file.replace("src/cli/cmd/tui/", "");
         indent(`${shortPath} (${texts.length} 处)`, 2);
@@ -1936,9 +2027,9 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
     const syntaxErrors = syntaxIssues.filter((i) => i.severity === "error");
 
     if (syntaxErrors.length > 0) {
-      console.log("");
+      blank();
       error(`发现 ${syntaxErrors.length} 处语法问题（可能导致编译错误）:`);
-      console.log("");
+      blank();
 
       for (const issue of syntaxErrors.slice(0, 5)) {
         console.log(`    ❌ ${issue.type}`);
@@ -1950,19 +2041,19 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
           `       译文: ${issue.translated.substring(0, 60)}${issue.translated.length > 60 ? "..." : ""}`,
         );
         console.log(`       问题: ${issue.reason}`);
-        console.log("");
+        blank();
       }
 
       if (syntaxErrors.length > 5) {
         indent(`... 还有 ${syntaxErrors.length - 5} 处错误`, 2);
-        console.log("");
+        blank();
       }
 
       // ========================================
       // 阶段 2: AI 自动修复语法问题
       // ========================================
       if (fix && this.checkConfig()) {
-        console.log("");
+        blank();
         step("AI 自动修复语法问题");
 
         const fixedCount = await this.autoFixSyntaxIssues(syntaxErrors);
@@ -1971,7 +2062,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
           success(`成功修复 ${fixedCount} 处语法问题`);
 
           // 重新检查
-          console.log("");
+          blank();
           step("重新验证");
           const recheck = this.recheckSyntax(translations);
 
@@ -1992,7 +2083,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
     let aiIssues = [];
 
     if (aiCheck && this.checkConfig() && syntaxErrors.length === 0) {
-      console.log("");
+      blank();
       step("AI 语义质量检查 (抽样 30 条)");
 
       const spinner = createSpinner("正在审查...");
@@ -2009,7 +2100,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
 
         if (aiIssues.length > 0) {
           warn(`AI 发现 ${aiIssues.length} 处翻译质量问题:`);
-          console.log("");
+          blank();
 
           for (const issue of aiIssues.slice(0, 5)) {
             console.log(`    ⚠️  ${issue.type || "翻译问题"}`);
@@ -2020,7 +2111,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
             if (issue.suggestion) {
               console.log(`       建议: ${issue.suggestion}`);
             }
-            console.log("");
+            blank();
           }
         } else {
           success("AI 审查通过，翻译质量良好");
@@ -2245,11 +2336,11 @@ ${samples}
   async showQualityReport() {
     const result = await this.checkQuality({ aiCheck: true });
 
-    console.log("");
+    blank();
     console.log("    ═══════════════════════════════════════");
     console.log("    📊 翻译质量报告");
     console.log("    ═══════════════════════════════════════");
-    console.log("");
+    blank();
     console.log(`    检查条数: ${result.checked}`);
 
     const syntaxErrors =
@@ -2276,13 +2367,13 @@ ${samples}
     const scoreColor =
       score >= 90 ? "\x1b[32m" : score >= 70 ? "\x1b[33m" : "\x1b[31m";
 
-    console.log("");
+    blank();
     if (syntaxErrors > 0) {
       console.log(`    ⚠️  有 ${syntaxErrors} 处语法错误可能导致编译失败！`);
     }
     console.log(`    质量评分: ${scoreColor}${score}/100\x1b[0m`);
 
-    console.log("");
+    blank();
     console.log("    ═══════════════════════════════════════");
 
     return result;
