@@ -62,6 +62,7 @@ function createCLI() {
     .option("-s, --silent", "静默模式")
     .option("--skip-verify", "跳过配置验证")
     .option("--skip-translate", "跳过 AI 翻译")
+    .option("--skip-quality-check", "跳过质量检查")
     .option("--auto-translate", "自动翻译（不询问）")
     .option("--dry-run", "测试模式，只扫描不翻译")
     .option("-i, --incremental", "增量模式，只翻译变更文件")
