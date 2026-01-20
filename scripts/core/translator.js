@@ -26,6 +26,7 @@ const {
   colors,
   S,
   barPrefix,
+  groupStart,
   groupEnd,
 } = require("./colors.js");
 const { getI18nDir, getOpencodeDir, getProjectDir } = require("./utils.js");
@@ -1282,7 +1283,7 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
     const reasonList = Object.entries(byReason)
       .map(
         ([reason, files]) =>
-          `${files.length} 个文件: ${reason} (如 ${files.slice(0, 2).join(", ")})`,
+          `• ${files.length} 个文件: ${reason}`,
       )
       .join("\n");
 
@@ -1298,56 +1299,43 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
         const samples = Object.values(f.translations)
           .slice(0, 3)
           .map((t) => {
-            // 提取翻译后的中文部分
             const match = t.match(/["']([^"']+)["']/);
             return match ? match[1] : t;
           });
-        return `${shortPath}: ${samples.join("、")}`;
+        return `• ${shortPath}: ${samples.join("、")}`;
       });
 
-      newTransInfo = `
-本次新增翻译了 ${newTranslations.files.length} 个文件，包括：
-${newFiles.slice(0, 5).join("\n")}
-`;
+      newTransInfo = `本次新增翻译了 ${newTranslations.files.length} 个文件:\n${newFiles.slice(0, 5).join("\n")}`;
     }
 
-    // 构建 prompt
-    let prompt = `你是一个汉化项目的助手。请用简短的中文总结以下情况，语气轻松友好，像朋友聊天一样。不要用"我"开头。`;
+    // 构建结构化 prompt
+    let prompt = `你是一个汉化项目的助手。请用结构化的格式总结以下情况。
+
+要求：
+1. 使用简短的要点式输出，每个要点用 "▸" 开头
+2. 重点内容用【】括起来突出
+3. 语气轻松友好
+4. 总共不超过 3 个要点`;
 
     if (newTransInfo) {
-      prompt += `
-
-${newTransInfo}
-
-请总结本次翻译了什么内容（用通俗的话描述，比如"对话框的按钮文字"、"提示信息"等）。`;
+      prompt += `\n\n翻译情况:\n${newTransInfo}\n\n请总结翻译了什么类型的内容（如界面按钮、提示信息等）。`;
     }
 
     if (noNeedTranslate.length > 0) {
-      prompt += `
-
-另外有 ${noNeedTranslate.length} 个文件被跳过，原因如下：
-${reasonList}
-
-${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便说明为什么跳过那些文件。"}`;
+      prompt += `\n\n跳过的文件 (${noNeedTranslate.length} 个):\n${reasonList}\n\n请简要说明跳过原因。`;
     }
 
     if (needTranslate.length > 0) {
-      prompt += `
-
-还有 ${needTranslate.length} 个文件检测到 UI 文本但未翻译，需要关注。`;
+      prompt += `\n\n待处理: 还有 ${needTranslate.length} 个文件需要翻译。`;
     }
 
-    prompt += `
-
-请用 2-3 句话总结，简洁有趣。`;
-
     const c = colors;
-    const spinner = createSpinner("正在思考...");
+    const spinner = createSpinner("AI 分析中...");
 
     try {
-      indent("");
-      indent(`${c.cyan}🤖 AI 总结${c.reset}`);
-      indent("");
+      blank();
+      groupStart(`${c.cyan}🤖${c.reset} ${c.bold}AI 总结${c.reset}`);
+      blank();  // 标题后换行
 
       spinner.start();
 
@@ -1356,7 +1344,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
       const result = await this.streamAISummaryWrapped(prompt, 50, () => {
         if (firstChar) {
           spinner.clear();
-          process.stdout.write(`${barPrefix()}  `);
+          process.stdout.write(`${barPrefix()}    `);
           firstChar = false;
         }
       });
@@ -1366,17 +1354,17 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
       }
 
       if (result === null) {
-        indent(`${c.dim}(未配置 AI API，跳过总结)${c.reset}`);
+        indent(`   ${c.dim}(未配置 AI，跳过总结)${c.reset}`);
       } else if (!result || result.trim() === "") {
-        indent(`${c.dim}(AI 返回为空，可能是网络问题或 API 限流)${c.reset}`);
+        indent(`   ${c.dim}(AI 返回为空)${c.reset}`);
       }
 
       blank();
       groupEnd();
     } catch (err) {
-      spinner.fail("思考失败");
+      spinner.fail("分析失败");
       const errMsg = err.message || String(err);
-      indent(`${c.dim}(AI 总结失败: ${errMsg.slice(0, 50)})${c.reset}`);
+      indent(`   ${c.dim}(失败: ${errMsg.slice(0, 40)})${c.reset}`);
       groupEnd();
     }
   }
@@ -1429,32 +1417,50 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
 
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-      // 若隐若现的渐变尾巴动画帧（从亮到暗再到亮）
-      const tailFrames = [
-        "\x1b[97m░\x1b[0m", // 亮白
-        "\x1b[37m▒\x1b[0m", // 白
-        "\x1b[90m▓\x1b[0m", // 暗灰
-        "\x1b[90m█\x1b[0m", // 暗灰
-        "\x1b[90m▓\x1b[0m", // 暗灰
-        "\x1b[37m▒\x1b[0m", // 白
-      ];
-      let tailIndex = 0;
+      // Knight Rider 流星尾巴动画
+      const tailWidth = 14;
+      const tailColor = "#ff4fd8";
+      const hexToRgb = (hex) => {
+        const h = hex.replace("#", "");
+        return {
+          r: parseInt(h.substring(0, 2), 16),
+          g: parseInt(h.substring(2, 4), 16),
+          b: parseInt(h.substring(4, 6), 16),
+        };
+      };
+      const rgb = (r, g, b) => `\x1b[38;2;${r};${g};${b}m`;
+      const baseColor = hexToRgb(tailColor);
+
+      let tailPosition = 0;
       let tailTimer = null;
       let tailVisible = false;
 
+      const renderTail = () => {
+        let tail = "";
+        for (let i = 0; i < tailWidth; i++) {
+          const dist = Math.abs(i - tailPosition);
+          const alpha = Math.max(0, 1 - dist * 0.18);
+          const r = Math.round(baseColor.r * alpha);
+          const g = Math.round(baseColor.g * alpha);
+          const b = Math.round(baseColor.b * alpha);
+          tail += `${rgb(r, g, b)}■`;
+        }
+        return tail + colors.reset;
+      };
+
       const updateTail = () => {
         if (!tailVisible) return;
-        process.stdout.write("\b");
-        process.stdout.write(tailFrames[tailIndex]);
-        tailIndex = (tailIndex + 1) % tailFrames.length;
+        process.stdout.write(`\x1b[${tailWidth}D`);
+        process.stdout.write(renderTail());
+        tailPosition = (tailPosition + 1) % tailWidth;
       };
 
       const startTailAnimation = () => {
         if (tailTimer) return;
         tailVisible = true;
-        process.stdout.write(tailFrames[tailIndex]);
-        tailIndex = (tailIndex + 1) % tailFrames.length;
-        tailTimer = setInterval(updateTail, 80);
+        tailPosition = 0;
+        process.stdout.write(renderTail());
+        tailTimer = setInterval(updateTail, 50);
       };
 
       const stopTailAnimation = () => {
@@ -1463,10 +1469,18 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
           tailTimer = null;
         }
         if (tailVisible) {
-          process.stdout.write("\b \b");
+          process.stdout.write(`\x1b[${tailWidth}D`);
+          process.stdout.write(" ".repeat(tailWidth));
+          process.stdout.write(`\x1b[${tailWidth}D`);
           tailVisible = false;
         }
       };
+
+      // 颜色状态
+      let inHighlight = false;
+      const c = colors;
+      // 断点字符（可以在这些字符后换行）
+      const breakChars = new Set(["，", "。", "！", "？", "、", "；", "：", " ", "~", "）", "】"]);
 
       const processQueue = async () => {
         if (isProcessing) return;
@@ -1483,32 +1497,61 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
 
           if (char === "\n") {
             stopTailAnimation();
-            process.stdout.write(`\n${barPrefix()}  `);
+            process.stdout.write(c.reset);
+            process.stdout.write(`\n${barPrefix()}    `);
+            inHighlight = false;
             startTailAnimation();
             currentLineLength = 0;
           } else {
             stopTailAnimation();
-            process.stdout.write(char);
+
+            // 颜色处理
+            let output = char;
+
+            if (char === "▸") {
+              output = `${c.cyan}${c.bold}▸${c.reset} `;
+            } else if (char === "【") {
+              inHighlight = true;
+              output = `${c.yellow}${c.bold}【`;
+            } else if (char === "】") {
+              output = `】${c.reset}`;
+              inHighlight = false;
+            } else if (char === "💡") {
+              output = `${c.yellow}💡${c.reset}`;
+            } else if (char === "#") {
+              output = `${c.magenta}${c.bold}#${c.reset}`;
+            } else if (char === "*") {
+              output = `${c.green}${c.bold}*${c.reset}`;
+            } else if (inHighlight) {
+              output = `${c.yellow}${c.bold}${char}`;
+            }
+
+            process.stdout.write(output);
             startTailAnimation();
+
             const charWidth = /[\u4e00-\u9fa5]/.test(char) ? 2 : 1;
             currentLineLength += charWidth;
 
-            if (currentLineLength >= maxWidth) {
+            // 智能换行：只在断点字符后换行
+            if (currentLineLength >= maxWidth && breakChars.has(char)) {
               stopTailAnimation();
-              process.stdout.write(`\n${barPrefix()}  `);
+              process.stdout.write(c.reset);
+              process.stdout.write(`\n${barPrefix()}    `);
+              if (inHighlight) process.stdout.write(`${c.yellow}${c.bold}`);
               startTailAnimation();
               currentLineLength = 0;
             }
           }
 
           fullContent += char;
-          await sleep(25);
+          await sleep(55);
         }
 
         isProcessing = false;
 
         if (streamEnded && charQueue.length === 0) {
           stopTailAnimation();
+          process.stdout.write(c.reset);
           resolve(fullContent);
         }
       };

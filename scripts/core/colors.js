@@ -32,9 +32,9 @@ const S = {
   BAR_END: "└",
   BAR_H: "─",
   STEP: "◇",
-  SUCCESS: "◆",
-  ERROR: "■",
-  WARN: "▲",
+  SUCCESS: "●",
+  ERROR: "●",
+  WARN: "●",
   INFO: "●",
   SKIP: "○",
 };
@@ -154,42 +154,32 @@ function groupEnd() {
 
 function nestedStep(title) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(`${bar}  ${colors.cyan}├─${colors.reset} ${title}`);
+  out(`${bar}  ${colors.cyan}├─${colors.reset} ${colors.bold}${title}${colors.reset}`);
 }
 
 function nestedContent(message) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(
-    `${bar}  ${colors.gray}│${colors.reset}  ${colors.dim}${message}${colors.reset}`,
-  );
+  out(`${bar}  ${colors.cyan}│${colors.reset}   ${colors.dim}${message}${colors.reset}`);
 }
 
 function nestedSuccess(message) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(
-    `${bar}  ${colors.gray}│${colors.reset}  ${colors.green}${S.SUCCESS}${colors.reset} ${message}`,
-  );
+  out(`${bar}  ${colors.cyan}│${colors.reset}   ${colors.green}${S.SUCCESS}${colors.reset} ${message}`);
 }
 
 function nestedWarn(message) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(
-    `${bar}  ${colors.gray}│${colors.reset}  ${colors.yellow}${S.WARN}${colors.reset} ${message}`,
-  );
+  out(`${bar}  ${colors.cyan}│${colors.reset}   ${colors.yellow}${S.WARN}${colors.reset} ${message}`);
 }
 
 function nestedError(message) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(
-    `${bar}  ${colors.gray}│${colors.reset}  ${colors.red}${S.ERROR}${colors.reset} ${message}`,
-  );
+  out(`${bar}  ${colors.cyan}│${colors.reset}   ${colors.red}${S.ERROR}${colors.reset} ${message}`);
 }
 
 function nestedKv(key, value) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(
-    `${bar}  ${colors.gray}│${colors.reset}  ${colors.dim}${key}${colors.reset}  ${value}`,
-  );
+  out(`${bar}  ${colors.cyan}│${colors.reset}   ${colors.dim}${key}${colors.reset}  ${value}`);
 }
 
 function nestedFinal(message, type = "success") {
@@ -200,7 +190,7 @@ function nestedFinal(message, type = "success") {
       : type === "warn"
         ? `${colors.yellow}${S.WARN}${colors.reset}`
         : `${colors.red}${S.ERROR}${colors.reset}`;
-  out(`${bar}  ${colors.gray}└─${colors.reset} ${icon} ${message}`);
+  out(`${bar}  ${colors.cyan}└─${colors.reset} ${icon} ${message}`);
 }
 
 const coloredLog = {

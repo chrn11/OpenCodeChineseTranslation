@@ -149,7 +149,7 @@ function showEnvInfo() {
       hwInfo = `${model} · ${chip}`;
     }
   } catch (e) {}
-  kv(padLabel("设备信息", 10), `${statusBadge("info")}  ${color.dim(hwInfo)}`);
+  kv(padLabel("设备信息", 10), color.dim(hwInfo));
 
   groupEnd();
 
