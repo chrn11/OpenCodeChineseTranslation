@@ -1,16 +1,19 @@
 /**
- * 环境检查模块 (macOS)
+ * 环境检查模块（跨平台）
  */
 
-const { hasCommand, getCommandVersion } = require('./utils.js');
-const { step, success, error, warn, indent } = require('./colors.js');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
+const { hasCommand, getCommandVersion, getPlatform, getOpencodeDir, getBinDir } = require("./utils.js");
+const { step, success, error, warn, indent } = require("./colors.js");
+const { execSync } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+const os = require("os");
+
+const REQUIRED_BUN_VERSION = "1.3.5";
 
 function checkNode() {
   try {
-    const version = getCommandVersion('node', '--version');
+    const version = getCommandVersion("node", "--version");
     if (!version) return { ok: false, version: null };
 
     const match = version.match(/v(\d+)\.(\d+)/);
@@ -18,7 +21,7 @@ function checkNode() {
 
     const major = parseInt(match[1], 10);
     const ok = major >= 18;
-    return { ok, version, required: '>=18.0.0' };
+    return { ok, version, required: ">=18.0.0" };
   } catch (e) {
     return { ok: false, version: null };
   }
@@ -26,8 +29,16 @@ function checkNode() {
 
 function checkBun() {
   try {
-    const version = getCommandVersion('bun', '--version');
-    return { ok: !!version, version };
+    const version = getCommandVersion("bun", "--version");
+    if (!version) return { ok: false, version: null };
+
+    const isCorrectVersion = version === REQUIRED_BUN_VERSION;
+    return {
+      ok: true,
+      version,
+      isCorrectVersion,
+      required: REQUIRED_BUN_VERSION,
+    };
   } catch (e) {
     return { ok: false, version: null };
   }
@@ -35,18 +46,83 @@ function checkBun() {
 
 function checkGit() {
   try {
-    const version = getCommandVersion('git', '--version');
+    const version = getCommandVersion("git", "--version");
     return { ok: !!version, version };
   } catch (e) {
     return { ok: false, version: null };
   }
 }
 
+function findInstalledOpencode() {
+  const { isWindows } = getPlatform();
+  try {
+    const cmd = isWindows ? "where opencode" : "which opencode";
+    const result = execSync(cmd, {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+    })
+      .trim()
+      .split("\n")[0];
+    if (result && fs.existsSync(result)) {
+      return { installed: true, path: result };
+    }
+  } catch (e) {}
+  return { installed: false, path: null };
+}
+
+function isOpencodeRunning() {
+  const { isWindows } = getPlatform();
+  try {
+    if (isWindows) {
+      const result = execSync('tasklist /FI "IMAGENAME eq opencode.exe" 2>nul', {
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      return result.includes("opencode.exe");
+    } else {
+      execSync("pgrep -x opencode", { stdio: ["pipe", "pipe", "pipe"] });
+      return true;
+    }
+  } catch (e) {
+    return false;
+  }
+}
+
+function getHardwareModel() {
+  const { isMac, isLinux, isWindows } = getPlatform();
+  try {
+    if (isMac) {
+      const model = execSync("sysctl -n hw.model", { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+      const chip = execSync("sysctl -n machdep.cpu.brand_string", { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+      return { model, chip };
+    }
+    if (isLinux) {
+      let model = "Linux";
+      try {
+        model = fs.readFileSync("/sys/devices/virtual/dmi/id/product_name", "utf8").trim();
+      } catch (e) {
+        try {
+          const osRelease = fs.readFileSync("/etc/os-release", "utf8");
+          const match = osRelease.match(/PRETTY_NAME="([^"]+)"/);
+          if (match) model = match[1];
+        } catch (e2) {}
+      }
+      return { model, chip: os.cpus()[0]?.model || "" };
+    }
+    if (isWindows) {
+      const model = execSync("wmic computersystem get model", { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] })
+        .split("\n")[1]?.trim() || "Windows PC";
+      return { model, chip: os.cpus()[0]?.model || "" };
+    }
+  } catch (e) {}
+  return { model: null, chip: null };
+}
+
 async function checkEnvironment(options = {}) {
   const { silent = false } = options;
 
   if (!silent) {
-    step('检查编译环境');
+    step("检查编译环境");
   }
 
   const results = {
@@ -58,32 +134,60 @@ async function checkEnvironment(options = {}) {
   const missing = [];
 
   if (!results.node.ok) {
-    missing.push('Node.js (需要 >=18.0.0)');
+    missing.push("Node.js (需要 >=18.0.0)");
   } else if (!silent) {
     success(`Node.js ${results.node.version}`);
   }
 
   if (!results.bun.ok) {
-    missing.push('Bun');
+    missing.push("Bun");
   } else if (!silent) {
-    success(`Bun ${results.bun.version}`);
+    if (results.bun.isCorrectVersion) {
+      success(`Bun ${results.bun.version}`);
+    } else {
+      warn(
+        `Bun ${results.bun.version} (需要 ${results.bun.required}，当前版本可能导致构建失败)`,
+      );
+      indent(
+        `安装指定版本: curl -fsSL https://bun.sh/install | bash -s "bun-v${results.bun.required}"`,
+        2,
+      );
+    }
   }
 
   if (!results.git.ok) {
-    missing.push('Git');
+    missing.push("Git");
   } else if (!silent) {
     success(`Git ${results.git.version}`);
   }
 
   if (!silent) {
-    indent(`平台: macOS ARM64`, 2);
+    const { platform, arch } = getPlatform();
+    const platformNames = { darwin: "macOS", linux: "Linux", win32: "Windows" };
+    const hw = getHardwareModel();
+    const platformStr = `${platformNames[platform] || platform} ${arch}`;
+    const modelStr = hw.model ? ` (${hw.model})` : "";
+    indent(`平台: ${platformStr}${modelStr}`, 2);
+    if (hw.chip) {
+      indent(`芯片: ${hw.chip}`, 2);
+    }
+
+    const opencode = findInstalledOpencode();
+    const running = isOpencodeRunning();
+    if (opencode.installed) {
+      success(`OpenCode 已安装${running ? ' (🟢 运行中)' : ''}`);
+      indent(`安装路径: ${opencode.path}`, 2);
+    } else {
+      warn("OpenCode 未安装");
+      indent("完成构建后运行: opencodenpm deploy", 2);
+    }
   }
 
   if (missing.length > 0) {
     if (!silent) {
-      error(`缺少必要工具: ${missing.join(', ')}`);
+      error(`缺少必要工具: ${missing.join(", ")}`);
       if (!results.bun?.ok) {
-        indent('安装 Bun: curl -fsSL https://bun.sh/install | bash', 2);
+        indent("安装 Bun: curl -fsSL https://bun.sh/install | bash", 2);
       }
     }
     return { ok: false, missing, results };
@@ -94,10 +198,10 @@ async function checkEnvironment(options = {}) {
 
 function getBunPath() {
   const possiblePaths = [
-    path.join(os.homedir(), '.bun', 'bin', 'bun'),
-    '/usr/local/bin/bun',
-    '/opt/homebrew/bin/bun',
-    path.join(os.homedir(), '.local', 'bin', 'bun'),
+    path.join(os.homedir(), ".bun", "bin", "bun"),
+    "/usr/local/bin/bun",
+    "/opt/homebrew/bin/bun",
+    path.join(os.homedir(), ".local", "bin", "bun"),
   ];
 
   for (const bunPath of possiblePaths) {
@@ -108,7 +212,9 @@ function getBunPath() {
 
   // 从 PATH 获取
   try {
-    const result = require('child_process').execSync('which bun', { encoding: 'utf-8' }).trim();
+    const result = require("child_process")
+      .execSync("which bun", { encoding: "utf-8" })
+      .trim();
     if (result) return result;
   } catch (e) {}
 
@@ -121,4 +227,5 @@ module.exports = {
   checkGit,
   checkEnvironment,
   getBunPath,
+  isOpencodeRunning,
 };

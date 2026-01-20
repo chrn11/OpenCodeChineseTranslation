@@ -1,270 +1,367 @@
 /**
- * 交互式菜单
+ * 交互式菜单 - 使用 @clack/prompts
  */
 
-const inquirer = require('inquirer');
-const fs = require('fs');
-const path = require('path');
-const { log } = require('./colors.js');
-const { getOpencodeDir, getI18nDir, exists } = require('./utils.js');
-const { getOpencodeVersion, getVersion: getConfigVersion } = require('./version.js');
+const p = require("@clack/prompts");
+const fs = require("fs");
+const path = require("path");
+const color = require("picocolors");
+const {
+  getOpencodeDir,
+  getI18nDir,
+  exists,
+  getPlatform,
+} = require("./utils.js");
+const { isOpencodeRunning } = require("./env.js");
 
-const updateCmd = require('../commands/update.js');
-const applyCmd = require('../commands/apply.js');
-const buildCmd = require('../commands/build.js');
-const verifyCmd = require('../commands/verify.js');
-const fullCmd = require('../commands/full.js');
-const deployCmd = require('../commands/deploy.js');
-const syncCmd = require('../commands/sync.js');
-const checkCmd = require('../commands/check.js');
-const Translator = require('./translator.js');
+const updateCmd = require("../commands/update.js");
+const applyCmd = require("../commands/apply.js");
+const buildCmd = require("../commands/build.js");
+const verifyCmd = require("../commands/verify.js");
+const fullCmd = require("../commands/full.js");
+const deployCmd = require("../commands/deploy.js");
+const syncCmd = require("../commands/sync.js");
+const checkCmd = require("../commands/check.js");
+const Translator = require("./translator.js");
 
-/**
- * 获取版本信息（官方版本 + 汉化版本）
- */
 function getVersionInfo() {
-  // 1. 尝试从语言包配置获取
   try {
-    const configPath = path.join(getI18nDir(), 'config.json');
+    const configPath = path.join(getI18nDir(), "config.json");
     if (exists(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
       if (config.opencodeVersion) {
         return {
           official: config.opencodeVersion,
-          zh: config.version || `${config.opencodeVersion}-zh`
+          zh: config.version || `${config.opencodeVersion}-zh`,
         };
       }
     }
   } catch (e) {}
-  
-  // 2. 尝试从源码获取
+
   try {
-    const pkgPath = path.join(getOpencodeDir(), 'packages', 'opencode', 'package.json');
+    const pkgPath = path.join(
+      getOpencodeDir(),
+      "packages",
+      "opencode",
+      "package.json",
+    );
     if (exists(pkgPath)) {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-      return {
-        official: pkg.version,
-        zh: `${pkg.version}-zh`
-      };
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      return { official: pkg.version, zh: `${pkg.version}-zh` };
     }
   } catch (e) {}
-  
-  return { official: null, zh: '未知版本' };
+
+  return { official: null, zh: "未知版本" };
 }
 
-/**
- * 获取当前版本号（兼容旧调用）
- */
-function getVersion() {
-  const info = getVersionInfo();
-  return info.zh;
+function getBuildPlatform() {
+  const { platform, arch } = getPlatform();
+  const map = {
+    darwin: `darwin-${arch}`,
+    linux: "linux-x64",
+    win32: "windows-x64",
+  };
+  return map[platform] || "linux-x64";
 }
 
-// 主菜单项
-const MENU_ITEMS = [
-  { name: '🚀 一键汉化 - 完整流程（同步→汉化→编译→部署）', value: 'full' },
-  new inquirer.Separator('─── 分步操作 ───'),
-  { name: '🔄 同步官方 - 拉取最新代码（会重置汉化，需重新应用）', value: 'sync' },
-  { name: '🌐 应用汉化 - AI翻译 + 替换源码', value: 'apply' },
-  { name: '⚡ 增量翻译 - 只翻译 git 变更的文件', value: 'incremental' },
-  { name: '🔨 编译构建 - 生成可执行文件', value: 'build' },
-  { name: '📦 部署系统 - 安装到 PATH', value: 'deploy' },
-  new inquirer.Separator('─── 质量工具 ───'),
-  { name: '🔍 质量检查 - AI 审查翻译质量', value: 'quality' },
-  { name: '📋 遗漏扫描 - 检查未翻译的文本', value: 'check' },
-  new inquirer.Separator(),
-  { name: '❌ 退出', value: 'exit' },
+function getDistPath() {
+  const plt = getBuildPlatform();
+  const ext = plt.startsWith("windows") ? ".exe" : "";
+  return path.join(
+    getOpencodeDir(),
+    "packages",
+    "opencode",
+    "dist",
+    `opencode-${plt}`,
+    "bin",
+    `opencode${ext}`,
+  );
+}
+
+function getDistDir() {
+  return path.join(
+    getOpencodeDir(),
+    "packages",
+    "opencode",
+    "dist",
+    `opencode-${getBuildPlatform()}`,
+  );
+}
+
+function makeClickable(text, filePath) {
+  return `\x1b]8;;file://${filePath}\x07${text}\x1b]8;;\x07`;
+}
+
+function showEnvInfo() {
+  const { checkNode, checkBun, checkGit } = require("./env.js");
+  const { execSync } = require("child_process");
+
+  const node = checkNode();
+  const bun = checkBun();
+  const git = checkGit();
+  const { platform, arch, isMac, isWindows } = getPlatform();
+  const platformNames = { darwin: "macOS", linux: "Linux", win32: "Windows" };
+
+  // 工具版本
+  const nodeStatus = node.ok ? color.green("✓") : color.red("✗");
+  const bunStatus = bun.ok
+    ? bun.isCorrectVersion
+      ? color.green("✓")
+      : color.yellow("⚠")
+    : color.red("✗");
+  const gitStatus = git.ok ? color.green("✓") : color.red("✗");
+
+  p.log.message(
+    `${nodeStatus} Node ${color.dim(node.version || "未安装")}   ${bunStatus} Bun ${color.dim(bun.version || "未安装")}   ${gitStatus} Git`,
+    { symbol: color.green("◇") },
+  );
+
+  // 硬件信息
+  let hwInfo = `${platformNames[platform] || platform} ${arch}`;
+  try {
+    if (isMac) {
+      const model = execSync("sysctl -n hw.model", {
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+      const chip = execSync("sysctl -n machdep.cpu.brand_string", {
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+      hwInfo = `${model} · ${chip}`;
+    }
+  } catch (e) {}
+  p.log.message(`设备信息  ${color.dim(hwInfo)}`, {
+    symbol: color.magenta("◆"),
+  });
+
+  // OpenCode
+  const running = isOpencodeRunning();
+  let ocPath = null;
+  try {
+    const cmd = isWindows ? "where opencode" : "which opencode";
+    ocPath = execSync(cmd, {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+    })
+      .trim()
+      .split("\n")[0];
+  } catch (e) {}
+
+  if (ocPath && fs.existsSync(ocPath)) {
+    const status = running ? color.green("运行中") : color.dim("已停止");
+    const clickable = makeClickable(color.dim(ocPath), path.dirname(ocPath));
+    p.log.success(`OpenCode ${status}  ${clickable}`);
+  } else {
+    p.log.warn(
+      `OpenCode ${color.yellow("未安装")} ${color.dim("→ 运行 deploy")}`,
+    );
+  }
+
+  // 构建产物
+  const distPath = getDistPath();
+  const distDir = getDistDir();
+  if (exists(distPath)) {
+    const clickable = makeClickable(
+      color.dim(`dist/opencode-${getBuildPlatform()}`),
+      distDir,
+    );
+    p.log.success(`构建产物 ${color.green("已生成")}  ${clickable}`);
+  } else {
+    p.log.warn(
+      `构建产物 ${color.yellow("未生成")} ${color.dim("→ 运行 build")}`,
+    );
+  }
+}
+
+const MENU_OPTIONS = [
+  { value: "full", label: "🚀 一键汉化", hint: "同步 → 汉化 → 编译 → 部署" },
+  { value: "sync", label: "🔄 同步官方", hint: "拉取最新代码" },
+  { value: "apply", label: "🌐 应用汉化", hint: "AI 翻译 + 替换源码" },
+  { value: "incremental", label: "⚡ 增量翻译", hint: "只翻译 git 变更文件" },
+  { value: "build", label: "🔨 编译构建", hint: "生成可执行文件" },
+  { value: "deploy", label: "📦 部署系统", hint: "安装到 PATH" },
+  { value: "quality", label: "🔍 质量检查", hint: "AI 审查翻译质量" },
+  { value: "check", label: "📋 遗漏扫描", hint: "检查未翻译文本" },
+  { value: "exit", label: "👋 退出" },
 ];
 
-// 定义每个操作的下一步建议
 const NEXT_STEP_MAP = {
   sync: {
-    recommended: 'apply',
-    choices: ['apply', 'incremental', 'menu', 'exit'],
-    labels: { apply: '应用汉化', incremental: '增量翻译', menu: '返回菜单', exit: '退出' }
+    recommended: "apply",
+    options: [
+      { value: "apply", label: "🌐 应用汉化" },
+      { value: "incremental", label: "⚡ 增量翻译" },
+      { value: "menu", label: "📋 返回菜单" },
+      { value: "exit", label: "👋 退出" },
+    ],
   },
   apply: {
-    recommended: 'build',
-    choices: ['build', 'quality', 'menu', 'exit'],
-    labels: { build: '编译构建', quality: '质量检查', menu: '返回菜单', exit: '退出' }
+    recommended: "build",
+    options: [
+      { value: "build", label: "🔨 编译构建" },
+      { value: "quality", label: "🔍 质量检查" },
+      { value: "menu", label: "📋 返回菜单" },
+      { value: "exit", label: "👋 退出" },
+    ],
   },
   incremental: {
-    recommended: 'build',
-    choices: ['build', 'apply', 'menu', 'exit'],
-    labels: { build: '编译构建', apply: '全量汉化', menu: '返回菜单', exit: '退出' }
+    recommended: "build",
+    options: [
+      { value: "build", label: "🔨 编译构建" },
+      { value: "menu", label: "📋 返回菜单" },
+      { value: "exit", label: "👋 退出" },
+    ],
   },
   build: {
-    recommended: 'deploy',
-    choices: ['deploy', 'apply', 'menu', 'exit'],
-    labels: { deploy: '部署系统', apply: '重新汉化', menu: '返回菜单', exit: '退出' }
+    recommended: "deploy",
+    options: [
+      { value: "deploy", label: "📦 部署系统" },
+      { value: "menu", label: "📋 返回菜单" },
+      { value: "exit", label: "👋 退出" },
+    ],
   },
   deploy: {
-    recommended: 'menu',
-    choices: ['menu', 'sync', 'exit'],
-    labels: { menu: '返回菜单', sync: '同步官方', exit: '退出' }
+    recommended: "menu",
+    options: [
+      { value: "menu", label: "📋 返回菜单" },
+      { value: "exit", label: "👋 退出" },
+    ],
   },
   full: {
-    recommended: 'menu',
-    choices: ['menu', 'exit'],
-    labels: { menu: '返回菜单', exit: '退出' }
+    recommended: "exit",
+    options: [
+      { value: "menu", label: "📋 返回菜单" },
+      { value: "exit", label: "👋 退出" },
+    ],
   },
   quality: {
-    recommended: 'menu',
-    choices: ['apply', 'menu', 'exit'],
-    labels: { apply: '应用汉化', menu: '返回菜单', exit: '退出' }
+    recommended: "menu",
+    options: [
+      { value: "apply", label: "🌐 应用汉化" },
+      { value: "menu", label: "📋 返回菜单" },
+      { value: "exit", label: "👋 退出" },
+    ],
   },
   check: {
-    recommended: 'apply',
-    choices: ['apply', 'menu', 'exit'],
-    labels: { apply: '应用汉化', menu: '返回菜单', exit: '退出' }
-  }
+    recommended: "apply",
+    options: [
+      { value: "apply", label: "🌐 应用汉化" },
+      { value: "menu", label: "📋 返回菜单" },
+      { value: "exit", label: "👋 退出" },
+    ],
+  },
 };
 
 async function runCommand(cmd) {
-  console.log('');
-  
+  console.log("");
+
   try {
     switch (cmd) {
-      case 'full':
+      case "full":
         await fullCmd.run({ auto: false });
         break;
-      case 'sync':
+      case "sync":
         await syncCmd.run({});
         break;
-      case 'apply':
+      case "apply":
         await applyCmd.run({});
         break;
-      case 'incremental':
-        // 增量翻译
+      case "incremental":
         await applyCmd.run({ incremental: true });
         break;
-      case 'build':
+      case "build":
         await buildCmd.run({});
         break;
-      case 'deploy':
+      case "deploy":
         await deployCmd.run({});
         break;
-      case 'quality':
-        // 翻译质量检查
+      case "quality":
         const translator = new Translator();
         await translator.showQualityReport();
         break;
-      case 'check':
-        // 遗漏扫描
+      case "check":
         await checkCmd.run({ verbose: false });
         break;
-      case 'exit':
-        console.log('再见~ 👋');
+      case "exit":
+        p.outro(color.cyan("🐰 再见~ 下次见！"));
         process.exit(0);
-      case 'menu':
-        return 'menu';
+      case "menu":
+        return "menu";
     }
-    return 'success';
+    return "success";
   } catch (e) {
-    console.error(`执行失败: ${e.message}`);
-    return 'error';
+    p.log.error(`执行失败: ${e.message}`);
+    return "error";
   }
 }
 
 async function askNextStep(currentCmd) {
-  const nextStepConfig = NEXT_STEP_MAP[currentCmd];
-  
-  const defaultConfig = {
-    recommended: 'menu',
-    choices: ['menu', 'exit'],
-    labels: { menu: '返回菜单', exit: '退出' }
+  const config = NEXT_STEP_MAP[currentCmd] || {
+    recommended: "menu",
+    options: [
+      { value: "menu", label: "📋 返回菜单" },
+      { value: "exit", label: "👋 退出" },
+    ],
   };
 
-  const config = nextStepConfig || defaultConfig;
-  const choices = config.choices;
-  const labels = config.labels;
-  let currentIndex = choices.indexOf(config.recommended);
-  if (currentIndex === -1) currentIndex = 0;
+  console.log("");
 
-  // 使用 inquirer 的 rawlist 改为自定义实现
-  // 但为了避免 stdin 冲突，用 inquirer 的 list 配合水平显示
-  const choiceItems = choices.map((c, i) => ({
-    name: labels[c],
-    value: c,
-    short: labels[c]
-  }));
+  const next = await p.select({
+    message: "下一步",
+    options: config.options,
+    initialValue: config.recommended,
+  });
 
-  // 分隔线
-  console.log('');
-  console.log('  ─────────────────────────────────────────');
-
-  const { next } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'next',
-      message: '下一步:',
-      choices: choiceItems,
-      default: config.recommended,
-      pageSize: choices.length
-    }
-  ]);
+  if (p.isCancel(next)) {
+    p.cancel("已取消");
+    process.exit(0);
+  }
 
   return next;
 }
 
 async function showMenu() {
   console.clear();
-  console.log('');
+
   const versionInfo = getVersionInfo();
-  
-  // 主标题：显示官方版本
-  const officialVersion = versionInfo.official || '未同步';
-  const title = `OpenCode 汉化工具`;
-  const subtitle = `官方 v${officialVersion}`;
-  
-  // 计算居中
-  const boxWidth = 38;
-  const titlePad = Math.max(0, boxWidth - 2 - title.length);
-  const titleLeft = Math.floor(titlePad / 2);
-  const titleRight = titlePad - titleLeft;
-  
-  const subPad = Math.max(0, boxWidth - 2 - subtitle.length);
-  const subLeft = Math.floor(subPad / 2);
-  const subRight = subPad - subLeft;
-  
-  log('╔' + '═'.repeat(boxWidth) + '╗', 'cyan');
-  log(`║${' '.repeat(titleLeft)} ${title} ${' '.repeat(titleRight)}║`, 'cyan');
-  log(`║${' '.repeat(subLeft)} ${subtitle} ${' '.repeat(subRight)}║`, 'cyan');
-  log('╚' + '═'.repeat(boxWidth) + '╝', 'cyan');
-  console.log('');
+  const officialVersion = versionInfo.official || "未同步";
 
-  const { action } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'action',
-      message: '选择操作:',
-      choices: MENU_ITEMS,
-      pageSize: 15,  // 增大显示数量，避免循环滚动
-      loop: false,   // 禁止循环
-    },
-  ]);
+  p.intro(
+    color.bgCyan(color.black(` 🐰 OpenCode 汉化工具 v${officialVersion} `)),
+  );
 
-  if (action === 'exit') {
-    console.log('再见~ 👋');
+  showEnvInfo();
+
+  const action = await p.select({
+    message: "",
+    options: MENU_OPTIONS,
+    initialValue: "full",
+  });
+
+  if (p.isCancel(action)) {
+    p.cancel("已取消");
     process.exit(0);
   }
 
-  // 执行命令
+  if (action === "exit") {
+    p.outro(color.cyan("🐰 再见~ 下次见！"));
+    process.exit(0);
+  }
+
   await runCommand(action);
 
-  // 询问下一步
   let nextAction = await askNextStep(action);
-  
-  // 循环执行直到返回菜单或退出
-  while (nextAction !== 'menu' && nextAction !== 'exit') {
+
+  while (nextAction !== "menu" && nextAction !== "exit") {
     await runCommand(nextAction);
     nextAction = await askNextStep(nextAction);
   }
 
-  if (nextAction === 'menu') {
+  if (nextAction === "menu") {
     await showMenu();
   } else {
-    console.log('再见~ 👋');
+    p.outro(color.cyan("🐰 再见~ 下次见！"));
   }
 }
 

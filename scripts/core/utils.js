@@ -2,10 +2,10 @@
  * 通用工具模块 (macOS)
  */
 
-const { execSync, spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
+const { execSync, spawn } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 
 /**
  * 获取项目根目录
@@ -13,7 +13,7 @@ const os = require('os');
 function getProjectDir() {
   let currentDir = __dirname;
   while (currentDir !== path.parse(currentDir).root) {
-    const markerFile = path.join(currentDir, 'opencode-i18n');
+    const markerFile = path.join(currentDir, "opencode-i18n");
     if (fs.existsSync(markerFile)) {
       return currentDir;
     }
@@ -26,21 +26,21 @@ function getProjectDir() {
  * 获取 OpenCode 源码目录
  */
 function getOpencodeDir() {
-  return path.join(getProjectDir(), 'opencode-zh-CN');
+  return path.join(getProjectDir(), "opencode-zh-CN");
 }
 
 /**
  * 获取汉化配置目录
  */
 function getI18nDir() {
-  return path.join(getProjectDir(), 'opencode-i18n');
+  return path.join(getProjectDir(), "opencode-i18n");
 }
 
 /**
  * 获取 bin 目录
  */
 function getBinDir() {
-  return path.join(getProjectDir(), 'bin');
+  return path.join(getProjectDir(), "bin");
 }
 
 /**
@@ -48,7 +48,7 @@ function getBinDir() {
  */
 function hasCommand(cmd) {
   try {
-    execSync(`which ${cmd}`, { stdio: 'ignore' });
+    execSync(`which ${cmd}`, { stdio: "ignore" });
     return true;
   } catch (e) {
     return false;
@@ -58,9 +58,9 @@ function hasCommand(cmd) {
 /**
  * 获取命令版本
  */
-function getCommandVersion(cmd, versionFlag = '--version') {
+function getCommandVersion(cmd, versionFlag = "--version") {
   try {
-    return execSync(`${cmd} ${versionFlag}`, { encoding: 'utf-8' }).trim();
+    return execSync(`${cmd} ${versionFlag}`, { encoding: "utf-8" }).trim();
   } catch (e) {
     return null;
   }
@@ -70,12 +70,12 @@ function getCommandVersion(cmd, versionFlag = '--version') {
  * 执行命令并返回输出
  */
 function exec(command, options = {}) {
-  const { cwd, stdio = 'pipe', ...rest } = options;
+  const { cwd, stdio = "pipe", ...rest } = options;
   try {
     return execSync(command, {
       cwd,
       stdio,
-      encoding: 'utf-8',
+      encoding: "utf-8",
       shell: true,
       ...rest,
     });
@@ -86,15 +86,21 @@ function exec(command, options = {}) {
 
 /**
  * 异步执行命令（带实时输出）
+ * @param {string} command - 命令
+ * @param {string[]} args - 参数
+ * @param {object} options - 选项
+ * @param {boolean} options.silent - 静默模式，不输出 stdout/stderr
  */
 function execLive(command, args, options = {}) {
+  const { silent = false, ...spawnOptions } = options;
+
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
-      stdio: 'inherit',
-      ...options,
+      stdio: silent ? "pipe" : "inherit",
+      ...spawnOptions,
     });
 
-    child.on('close', (code) => {
+    child.on("close", (code) => {
       if (code === 0) {
         resolve();
       } else {
@@ -102,7 +108,7 @@ function execLive(command, args, options = {}) {
       }
     });
 
-    child.on('error', reject);
+    child.on("error", reject);
   });
 }
 
@@ -143,7 +149,7 @@ function copy(src, dest) {
  * 读取 JSON 文件
  */
 function readJSON(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
 }
 
 /**
@@ -151,14 +157,14 @@ function readJSON(filePath) {
  */
 function writeJSON(filePath, data) {
   ensureDir(path.dirname(filePath));
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
 }
 
 /**
  * 格式化文件大小
  */
 function formatSize(bytes) {
-  const units = ['B', 'KB', 'MB', 'GB'];
+  const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
   let unitIndex = 0;
 
@@ -184,6 +190,33 @@ function getHomeDir() {
   return os.homedir();
 }
 
+/**
+ * 获取当前平台信息
+ */
+function getPlatform() {
+  const platform = process.platform; // 'darwin' | 'linux' | 'win32'
+  const arch = process.arch; // 'arm64' | 'x64'
+  return {
+    platform,
+    arch,
+    isWindows: platform === "win32",
+    isMac: platform === "darwin",
+    isLinux: platform === "linux",
+    isArm64: arch === "arm64",
+  };
+}
+
+/**
+ * 获取 OpenCode 配置文件路径（跨平台）
+ */
+function getOpencodeConfigPath() {
+  const { isWindows } = getPlatform();
+  if (isWindows) {
+    return path.join(process.env.APPDATA || "", "opencode", "opencode.json");
+  }
+  return path.join(os.homedir(), ".config", "opencode", "opencode.json");
+}
+
 module.exports = {
   getProjectDir,
   getOpencodeDir,
@@ -202,4 +235,6 @@ module.exports = {
   formatSize,
   sleep,
   getHomeDir,
+  getPlatform,
+  getOpencodeConfigPath,
 };

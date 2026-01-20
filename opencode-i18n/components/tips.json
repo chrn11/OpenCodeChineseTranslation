@@ -92,6 +92,7 @@
     "\"Tool definitions can invoke scripts written in Python, Go, etc\"": "\"工具定义可调用 Python、Go 等脚本 (Script tools)\"",
     "\"Add {highlight}.ts{/highlight} files to {highlight}.opencode/plugin/{/highlight} for event hooks\"": "\"在 {highlight}.opencode/plugin/{/highlight} 添加 {highlight}.ts{/highlight} 创建事件钩子 (Event hooks)\"",
     "\"Use plugins to send OS notifications when sessions complete\"": "\"用插件在会话完成时发送系统通知 (Session notifications)\"",
-    "\"Create a plugin to prevent OpenCode from reading sensitive files\"": "\"创建插件阻止读取敏感文件 (Protect sensitive files)\""
+    "\"Create a plugin to prevent OpenCode from reading sensitive files\"": "\"创建插件阻止读取敏感文件 (Protect sensitive files)\"",
+    "\"Use {highlight}opencode --continue{/highlight} to resume the last session\"": "\"使用 {highlight}opencode --continue{/highlight} 继续上一个会话\""
   }
 }
