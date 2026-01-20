@@ -14,7 +14,16 @@ const crypto = require("crypto");
 const http = require("http");
 const https = require("https");
 const { glob } = require("glob");
-const { step, success, error, warn, indent, log } = require("./colors.js");
+const {
+  step,
+  success,
+  error,
+  warn,
+  indent,
+  createSpinner,
+  colors,
+  S,
+} = require("./colors.js");
 const { getI18nDir, getOpencodeDir, getProjectDir } = require("./utils.js");
 
 class Translator {
@@ -1319,62 +1328,36 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
 
 请用 2-3 句话总结，简洁有趣。`;
 
-    // 加载动画变量（放在 try 外面以便 catch 能访问）
-    const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-    let frameIndex = 0;
-    let spinnerInterval = null;
-
-    const clearSpinner = () => {
-      if (spinnerInterval) {
-        clearInterval(spinnerInterval);
-        spinnerInterval = null;
-      }
-      process.stdout.write("\r                                        \r");
-    };
-
-    const c = {
-      gray: "\x1b[90m",
-      cyan: "\x1b[36m",
-      dim: "\x1b[2m",
-      reset: "\x1b[0m",
-    };
-    const BAR = "│";
+    const c = colors;
+    const spinner = createSpinner("正在思考...");
 
     try {
-      console.log(`${c.gray}${BAR}${c.reset}`);
-      console.log(`${c.gray}${BAR}${c.reset}  ${c.cyan}🤖 AI 总结${c.reset}`);
-      console.log(`${c.gray}${BAR}${c.reset}`);
+      indent("");
+      indent(`${c.cyan}🤖 AI 总结${c.reset}`);
+      indent("");
 
-      process.stdout.write(`${c.gray}${BAR}${c.reset}  `);
-      spinnerInterval = setInterval(() => {
-        process.stdout.write(
-          `\r${c.gray}${BAR}${c.reset}  ${frames[frameIndex]} ${c.dim}正在思考...${c.reset}`,
-        );
-        frameIndex = (frameIndex + 1) % frames.length;
-      }, 80);
+      spinner.start();
 
       let firstChar = true;
 
       await this.streamAISummaryWrapped(prompt, 50, () => {
         if (firstChar) {
-          clearSpinner();
-          process.stdout.write(`\r${c.gray}${BAR}${c.reset}  `);
+          spinner.clear();
+          process.stdout.write(`${c.gray}${S.BAR}${c.reset}  `);
           firstChar = false;
         }
       });
 
       if (firstChar) {
-        clearSpinner();
+        spinner.clear();
       }
 
       console.log("");
       console.log(`${c.gray}└${c.reset}`);
     } catch (err) {
-      clearSpinner();
+      spinner.fail("思考失败");
       const errMsg = err.message || String(err);
-      console.log(
-        `${c.gray}${BAR}${c.reset}  ${c.dim}(AI 总结失败: ${errMsg.slice(0, 50)})${c.reset}`,
-      );
+      indent(`${c.dim}(AI 总结失败: ${errMsg.slice(0, 50)})${c.reset}`);
       console.log(`${c.gray}└${c.reset}`);
     }
   }
@@ -1923,7 +1906,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
 
     step("加载现有翻译");
     const translations = this.loadAllTranslations();
-    log(`共加载 ${translations.length} 条翻译`);
+    indent(`共加载 ${translations.length} 条翻译`);
 
     // ========================================
     // 阶段 1: 本地语法安全检查（快速，不调用 API）
@@ -2011,14 +1994,9 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
     if (aiCheck && this.checkConfig() && syntaxErrors.length === 0) {
       console.log("");
       step("AI 语义质量检查 (抽样 30 条)");
-      console.log("");
 
-      const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-      let frameIndex = 0;
-      const spinner = setInterval(() => {
-        process.stdout.write(`\r    ${frames[frameIndex]} 正在审查...`);
-        frameIndex = (frameIndex + 1) % frames.length;
-      }, 80);
+      const spinner = createSpinner("正在审查...");
+      spinner.start();
 
       try {
         const sample = translations
@@ -2027,8 +2005,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
 
         aiIssues = await this.reviewTranslationsWithAI(sample);
 
-        clearInterval(spinner);
-        process.stdout.write("\r                              \r");
+        spinner.stop("审查完成");
 
         if (aiIssues.length > 0) {
           warn(`AI 发现 ${aiIssues.length} 处翻译质量问题:`);
@@ -2049,8 +2026,7 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
           success("AI 审查通过，翻译质量良好");
         }
       } catch (err) {
-        clearInterval(spinner);
-        process.stdout.write("\r                              \r");
+        spinner.fail("审查失败");
         warn(`AI 审查跳过: ${err.message}`);
       }
     }
@@ -2110,11 +2086,11 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
         problem: issue.reason,
       }));
 
-      // 显示进度
       const fileName = path.basename(configPath);
-      process.stdout.write(
-        `    修复 ${fileName} (${fixRequests.length} 处)...`,
+      const fixSpinner = createSpinner(
+        `修复 ${fileName} (${fixRequests.length} 处)`,
       );
+      fixSpinner.start();
 
       try {
         // 调用 AI 修复
@@ -2135,7 +2111,6 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
           }
         }
 
-        // 写回文件
         if (fileFixed > 0) {
           fs.writeFileSync(
             configPath,
@@ -2143,12 +2118,12 @@ ${!newTransInfo ? "请简单说明为什么跳过这些文件。" : "也顺便�
             "utf-8",
           );
           fixedCount += fileFixed;
-          process.stdout.write(` ✓ 修复 ${fileFixed} 处\n`);
+          fixSpinner.stop(`修复 ${fileFixed} 处`);
         } else {
-          process.stdout.write(` 无需修复\n`);
+          fixSpinner.stop("无需修复");
         }
       } catch (err) {
-        process.stdout.write(` ✗ 失败: ${err.message}\n`);
+        fixSpinner.fail(`失败: ${err.message}`);
       }
 
       // 速率限制

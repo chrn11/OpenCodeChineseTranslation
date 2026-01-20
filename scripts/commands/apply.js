@@ -17,6 +17,8 @@ const {
   info,
   colors,
   S,
+  createSpinner,
+  flushStream,
 } = require("../core/colors.js");
 
 async function run(options = {}) {
@@ -57,7 +59,7 @@ async function run(options = {}) {
       }
 
       if (dryRun) {
-        log("(dry-run 模式，仅扫描不翻译)");
+        indent("(dry-run 模式，仅扫描不翻译)");
         return true;
       }
 
@@ -96,7 +98,7 @@ async function run(options = {}) {
         console.log("");
 
         if (dryRun) {
-          log("(dry-run 模式，仅扫描不翻译)");
+          indent("(dry-run 模式，仅扫描不翻译)");
           return true;
         }
 
@@ -132,11 +134,16 @@ async function run(options = {}) {
           }
           console.log("");
         } else {
-          log("跳过 AI 翻译");
+          indent("跳过 AI 翻译");
           console.log("");
         }
       } else {
         success("所有文本已有翻译");
+        console.log("");
+
+        // 步骤 2: 显示跳过信息
+        step("步骤 2/4: AI 翻译");
+        indent("跳过（所有文本已有翻译）");
         console.log("");
       }
     }
@@ -201,13 +208,15 @@ async function run(options = {}) {
 async function runQualityCheck(i18n, translator) {
   const c = colors;
 
+  await flushStream();
   step("质量检查");
 
   let allPassed = true;
   const issues = [];
 
   // 1. TypeScript 语法检查
-  console.log(`${c.gray}${S.BAR}${c.reset}  检查 TypeScript 语法...`);
+  const spinner1 = createSpinner("检查 TypeScript 语法");
+  spinner1.start();
 
   try {
     const tscPath = path.join(i18n.opencodeDir, "node_modules", ".bin", "tsc");
@@ -219,20 +228,15 @@ async function runQualityCheck(i18n, translator) {
       timeout: 60000,
     });
 
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}  ${c.green}✓${c.reset} TypeScript 语法正确`,
-    );
+    spinner1.success("TypeScript 语法正确");
   } catch (e) {
     const stderr = e.stderr?.toString() || "";
     const errorLines = stderr.split("\n").filter((l) => l.includes("error TS"));
 
     if (errorLines.length > 0) {
       allPassed = false;
-      console.log(
-        `${c.gray}${S.BAR}${c.reset}  ${c.red}✗${c.reset} 发现 ${errorLines.length} 个 TypeScript 错误`,
-      );
+      spinner1.error(`发现 ${errorLines.length} 个 TypeScript 错误`);
 
-      // 分析错误是否与翻译相关
       const translationErrors = errorLines.filter(
         (l) => l.includes(".tsx") && (l.includes("tui") || l.includes("cli")),
       );
@@ -254,14 +258,13 @@ async function runQualityCheck(i18n, translator) {
         });
       }
     } else {
-      console.log(
-        `${c.gray}${S.BAR}${c.reset}  ${c.green}✓${c.reset} TypeScript 语法正确`,
-      );
+      spinner1.success("TypeScript 语法正确");
     }
   }
 
   // 2. 检查关键文件完整性
-  console.log(`${c.gray}${S.BAR}${c.reset}  检查文件完整性...`);
+  const spinner2 = createSpinner("检查文件完整性");
+  spinner2.start();
 
   const criticalFiles = [
     "src/cli/cmd/tui/app.tsx",
@@ -276,22 +279,19 @@ async function runQualityCheck(i18n, translator) {
     const fullPath = path.join(i18n.sourceBase, file);
     if (!fs.existsSync(fullPath)) {
       missingFiles++;
-      console.log(
-        `${c.gray}${S.BAR}${c.reset}    ${c.red}✗${c.reset} 缺失: ${file}`,
-      );
     }
   }
 
   if (missingFiles === 0) {
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}  ${c.green}✓${c.reset} 关键文件完整`,
-    );
+    spinner2.success("关键文件完整");
   } else {
+    spinner2.error(`缺失 ${missingFiles} 个关键文件`);
     allPassed = false;
   }
 
   // 3. 检查替换后的中文是否正确闭合
-  console.log(`${c.gray}${S.BAR}${c.reset}  检查字符串闭合...`);
+  const spinner3 = createSpinner("检查字符串闭合");
+  spinner3.start();
 
   const configs = i18n.loadConfig();
   let unclosedCount = 0;
@@ -331,13 +331,9 @@ async function runQualityCheck(i18n, translator) {
   }
 
   if (unclosedCount === 0) {
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}  ${c.green}✓${c.reset} 字符串格式正确`,
-    );
-  } else if (unclosedCount > 3) {
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}    ${c.dim}... 还有 ${unclosedCount - 3} 个问题${c.reset}`,
-    );
+    spinner3.success("字符串格式正确");
+  } else {
+    spinner3.warn(`发现 ${unclosedCount} 个潜在问题`);
   }
 
   // 总结

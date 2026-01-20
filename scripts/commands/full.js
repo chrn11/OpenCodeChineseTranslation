@@ -1,10 +1,11 @@
 /**
  * full 命令
- * 优化的完整工作流：检查源码 → (可选)更新 → 恢复纯净 → 汉化 → 验证 → (可选)编译 → (可选)部署
+ * 完整工作流：检查源码 → 更新 → 恢复纯净 → 汉化 → 验证 → 编译 → 部署
  */
 
-const inquirer = require("inquirer");
-const { step, success, error, warn, log } = require("../core/colors.js");
+const p = require("@clack/prompts");
+const color = require("picocolors");
+const { step, success, error, warn, indent } = require("../core/colors.js");
 const { existsSync } = require("fs");
 const { execSync } = require("child_process");
 const { cleanRepo, isGitRepo } = require("../core/git.js");
@@ -15,9 +16,6 @@ const verifyCmd = require("./verify.js");
 const buildCmd = require("./build.js");
 const deployCmd = require("./deploy.js");
 
-/**
- * 检查源码是否有更新
- */
 function checkSourceUpdate() {
   const opencodeDir = getOpencodeDir();
 
@@ -49,9 +47,6 @@ function checkSourceUpdate() {
   }
 }
 
-/**
- * 检查源码是否有修改
- */
 function hasLocalChanges() {
   const opencodeDir = getOpencodeDir();
 
@@ -71,32 +66,31 @@ function hasLocalChanges() {
   }
 }
 
-/**
- * 完整工作流
- */
 async function run(options = {}) {
   const { auto = false } = options;
 
   console.log("");
-  log("=== OpenCode 中文版 - 一键汉化全流程 ===", "cyan");
-  console.log("");
+  p.intro(color.bgCyan(color.black(" 🚀 一键汉化全流程 ")));
 
-  // 1. 检查源码状态
-  step("[1/7] 检查源码状态");
+  // 步骤 1: 检查源码状态
+  step("步骤 1/7: 检查源码状态");
   const sourceStatus = checkSourceUpdate();
 
   if (!sourceStatus.exists) {
     warn("源码不存在，需要克隆");
-    const { confirm } = auto
-      ? { confirm: true }
-      : await inquirer.prompt([
-          {
-            type: "confirm",
-            name: "confirm",
-            message: "是否克隆 OpenCode 源码?",
-            default: true,
-          },
-        ]);
+
+    let confirm = true;
+    if (!auto) {
+      const result = await p.confirm({
+        message: "是否克隆 OpenCode 源码?",
+        initialValue: true,
+      });
+      if (p.isCancel(result)) {
+        p.cancel("已取消");
+        return false;
+      }
+      confirm = result;
+    }
 
     if (!confirm) {
       error("已取消");
@@ -110,87 +104,106 @@ async function run(options = {}) {
     if (sourceStatus.hasUpdate) {
       indent(`本地版本: ${sourceStatus.localCommit}`, 2);
       indent(`远程版本: ${sourceStatus.remoteCommit}`, 2);
-      warn("  源码有更新可用");
+      warn("源码有更新可用");
 
-      const { shouldUpdate } = auto
-        ? { shouldUpdate: true }
-        : await inquirer.prompt([
-            {
-              type: "confirm",
-              name: "shouldUpdate",
-              message: "是否更新到最新版本?",
-              default: true,
-            },
-          ]);
+      let shouldUpdate = true;
+      if (!auto) {
+        const result = await p.confirm({
+          message: "是否更新到最新版本?",
+          initialValue: true,
+        });
+        if (p.isCancel(result)) {
+          p.cancel("已取消");
+          return false;
+        }
+        shouldUpdate = result;
+      }
 
       if (shouldUpdate) {
         await updateCmd.run({});
       }
     } else {
-      indent("源码已是最新", 2);
+      success("源码已是最新");
     }
   }
+  console.log("");
 
-  // 2. 检查本地修改
-  step("[2/7] 检查本地修改");
+  // 步骤 2: 检查本地修改
+  step("步骤 2/7: 检查本地修改");
   if (hasLocalChanges()) {
     warn("检测到本地修改，将恢复到纯净状态");
   } else {
     success("源码纯净，无修改");
   }
+  console.log("");
 
-  // 3. 恢复纯净
-  step("[3/7] 恢复源码到纯净状态");
+  // 步骤 3: 恢复纯净
+  step("步骤 3/7: 恢复源码到纯净状态");
   await cleanRepo(getOpencodeDir());
+  console.log("");
 
-  // 4. 应用汉化
-  step("[4/7] 应用汉化配置");
-  await applyCmd.run({});
+  // 步骤 4: 应用汉化
+  step("步骤 4/7: 应用汉化");
+  await applyCmd.run({ silent: false });
+  console.log("");
 
-  // 5. 验证汉化
-  step("[5/7] 验证汉化结果");
+  // 步骤 5: 验证汉化
+  step("步骤 5/7: 验证汉化结果");
   await verifyCmd.run({});
+  console.log("");
 
-  // 6. 询问是否编译
-  step("[6/7] 编译构建");
-  const { shouldBuild } = auto
-    ? { shouldBuild: true }
-    : await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "shouldBuild",
-          message: "是否编译 OpenCode?",
-          default: true,
-        },
-      ]);
+  // 步骤 6: 编译构建
+  step("步骤 6/7: 编译构建");
+
+  let shouldBuild = true;
+  if (!auto) {
+    const result = await p.confirm({
+      message: "是否编译 OpenCode?",
+      initialValue: true,
+    });
+    if (p.isCancel(result)) {
+      p.cancel("已取消");
+      return false;
+    }
+    shouldBuild = result;
+  }
 
   if (shouldBuild) {
     await buildCmd.run({});
+    console.log("");
 
-    // 7. 询问是否部署全局命令
-    step("[7/7] 部署全局命令");
-    const { shouldDeploy } = auto
-      ? { shouldDeploy: true }
-      : await inquirer.prompt([
-          {
-            type: "confirm",
-            name: "shouldDeploy",
-            message: "是否部署 opencode 全局命令? (任意终端可执行)",
-            default: true,
-          },
-        ]);
+    // 步骤 7: 部署全局命令
+    step("步骤 7/7: 部署全局命令");
+
+    let shouldDeploy = true;
+    if (!auto) {
+      const result = await p.confirm({
+        message: "是否部署 opencode 全局命令?",
+        initialValue: true,
+      });
+      if (p.isCancel(result)) {
+        p.cancel("已取消");
+        return false;
+      }
+      shouldDeploy = result;
+    }
 
     if (shouldDeploy) {
       await deployCmd.run({});
+    } else {
+      indent("跳过部署");
     }
   } else {
-    success("跳过编译");
+    indent("跳过编译");
+    console.log("");
+
+    // 步骤 7: 显示跳过
+    step("步骤 7/7: 部署全局命令");
+    indent("跳过（未编译）");
   }
 
-  // 完成
   console.log("");
-  log("=== 汉化流程完成! ===", "cyan");
-  console.log("");
+  p.outro(color.green("✓ 汉化流程完成！"));
 
   return true;
 }

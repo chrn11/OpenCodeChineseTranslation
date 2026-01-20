@@ -102,7 +102,6 @@ function showEnvInfo() {
   const { platform, arch, isMac, isWindows } = getPlatform();
   const platformNames = { darwin: "macOS", linux: "Linux", win32: "Windows" };
 
-  // 工具版本
   const nodeStatus = node.ok ? color.green("✓") : color.red("✗");
   const bunStatus = bun.ok
     ? bun.isCorrectVersion
@@ -116,7 +115,6 @@ function showEnvInfo() {
     { symbol: color.green("◇") },
   );
 
-  // 硬件信息
   let hwInfo = `${platformNames[platform] || platform} ${arch}`;
   try {
     if (isMac) {
@@ -135,7 +133,6 @@ function showEnvInfo() {
     symbol: color.magenta("◆"),
   });
 
-  // OpenCode
   const running = isOpencodeRunning();
   let ocPath = null;
   try {
@@ -158,7 +155,6 @@ function showEnvInfo() {
     );
   }
 
-  // 构建产物
   const distPath = getDistPath();
   const distDir = getDistDir();
   if (exists(distPath)) {
@@ -176,13 +172,10 @@ function showEnvInfo() {
 
 const MENU_OPTIONS = [
   { value: "full", label: "🚀 一键汉化", hint: "同步 → 汉化 → 编译 → 部署" },
-  { value: "sync", label: "🔄 同步官方", hint: "拉取最新代码" },
-  { value: "apply", label: "🌐 应用汉化", hint: "AI 翻译 + 替换源码" },
-  { value: "incremental", label: "⚡ 增量翻译", hint: "只翻译 git 变更文件" },
-  { value: "build", label: "🔨 编译构建", hint: "生成可执行文件" },
-  { value: "deploy", label: "📦 部署系统", hint: "安装到 PATH" },
-  { value: "quality", label: "🔍 质量检查", hint: "AI 审查翻译质量" },
-  { value: "check", label: "📋 遗漏扫描", hint: "检查未翻译文本" },
+  { value: "sync", label: "🔄 同步官方", hint: "拉取最新源码" },
+  { value: "apply", label: "🌐 应用汉化", hint: "全量 / 增量翻译" },
+  { value: "build", label: "🔨 编译部署", hint: "编译 + 安装到系统" },
+  { value: "check", label: "🔍 检查", hint: "质量检查 / 遗漏扫描" },
   { value: "exit", label: "👋 退出" },
 ];
 
@@ -191,7 +184,6 @@ const NEXT_STEP_MAP = {
     recommended: "apply",
     options: [
       { value: "apply", label: "🌐 应用汉化" },
-      { value: "incremental", label: "⚡ 增量翻译" },
       { value: "menu", label: "📋 返回菜单" },
       { value: "exit", label: "👋 退出" },
     ],
@@ -199,29 +191,13 @@ const NEXT_STEP_MAP = {
   apply: {
     recommended: "build",
     options: [
-      { value: "build", label: "🔨 编译构建" },
-      { value: "quality", label: "🔍 质量检查" },
-      { value: "menu", label: "📋 返回菜单" },
-      { value: "exit", label: "👋 退出" },
-    ],
-  },
-  incremental: {
-    recommended: "build",
-    options: [
-      { value: "build", label: "🔨 编译构建" },
+      { value: "build", label: "🔨 编译部署" },
+      { value: "check", label: "🔍 检查" },
       { value: "menu", label: "📋 返回菜单" },
       { value: "exit", label: "👋 退出" },
     ],
   },
   build: {
-    recommended: "deploy",
-    options: [
-      { value: "deploy", label: "📦 部署系统" },
-      { value: "menu", label: "📋 返回菜单" },
-      { value: "exit", label: "👋 退出" },
-    ],
-  },
-  deploy: {
     recommended: "menu",
     options: [
       { value: "menu", label: "📋 返回菜单" },
@@ -231,14 +207,6 @@ const NEXT_STEP_MAP = {
   full: {
     recommended: "exit",
     options: [
-      { value: "menu", label: "📋 返回菜单" },
-      { value: "exit", label: "👋 退出" },
-    ],
-  },
-  quality: {
-    recommended: "menu",
-    options: [
-      { value: "apply", label: "🌐 应用汉化" },
       { value: "menu", label: "📋 返回菜单" },
       { value: "exit", label: "👋 退出" },
     ],
@@ -253,6 +221,89 @@ const NEXT_STEP_MAP = {
   },
 };
 
+async function showApplySubMenu() {
+  const mode = await p.select({
+    message: "选择翻译模式",
+    options: [
+      { value: "full", label: "🌐 全量翻译", hint: "扫描所有文件" },
+      { value: "incremental", label: "⚡ 增量翻译", hint: "仅 git 变更文件" },
+      { value: "back", label: "← 返回" },
+    ],
+    initialValue: "full",
+  });
+
+  if (p.isCancel(mode) || mode === "back") {
+    return "back";
+  }
+
+  console.log("");
+
+  if (mode === "full") {
+    await applyCmd.run({});
+  } else {
+    await applyCmd.run({ incremental: true });
+  }
+
+  return "success";
+}
+
+async function showBuildSubMenu() {
+  const action = await p.select({
+    message: "选择操作",
+    options: [
+      { value: "both", label: "🔨 编译 + 部署", hint: "推荐" },
+      { value: "build", label: "📦 仅编译", hint: "生成可执行文件" },
+      { value: "deploy", label: "🚀 仅部署", hint: "安装到系统 PATH" },
+      { value: "back", label: "← 返回" },
+    ],
+    initialValue: "both",
+  });
+
+  if (p.isCancel(action) || action === "back") {
+    return "back";
+  }
+
+  console.log("");
+
+  if (action === "both" || action === "build") {
+    await buildCmd.run({});
+  }
+
+  if (action === "both" || action === "deploy") {
+    if (action === "both") console.log("");
+    await deployCmd.run({});
+  }
+
+  return "success";
+}
+
+async function showCheckSubMenu() {
+  const action = await p.select({
+    message: "选择检查类型",
+    options: [
+      { value: "quality", label: "🔍 质量检查", hint: "AI 审查翻译质量" },
+      { value: "missing", label: "📋 遗漏扫描", hint: "检查未翻译文本" },
+      { value: "back", label: "← 返回" },
+    ],
+    initialValue: "quality",
+  });
+
+  if (p.isCancel(action) || action === "back") {
+    return "back";
+  }
+
+  console.log("");
+
+  if (action === "quality") {
+    const translator = new Translator();
+    await translator.showQualityReport();
+  } else {
+    await checkCmd.run({ verbose: false });
+  }
+
+  return "success";
+}
+
 async function runCommand(cmd) {
   console.log("");
 
@@ -264,25 +315,21 @@ async function runCommand(cmd) {
       case "sync":
         await syncCmd.run({});
         break;
-      case "apply":
-        await applyCmd.run({});
+      case "apply": {
+        const result = await showApplySubMenu();
+        if (result === "back") return "menu";
         break;
-      case "incremental":
-        await applyCmd.run({ incremental: true });
+      }
+      case "build": {
+        const result = await showBuildSubMenu();
+        if (result === "back") return "menu";
         break;
-      case "build":
-        await buildCmd.run({});
+      }
+      case "check": {
+        const result = await showCheckSubMenu();
+        if (result === "back") return "menu";
         break;
-      case "deploy":
-        await deployCmd.run({});
-        break;
-      case "quality":
-        const translator = new Translator();
-        await translator.showQualityReport();
-        break;
-      case "check":
-        await checkCmd.run({ verbose: false });
-        break;
+      }
       case "exit":
         p.outro(color.cyan("🐰 再见~ 下次见！"));
         process.exit(0);
@@ -349,12 +396,21 @@ async function showMenu() {
     process.exit(0);
   }
 
-  await runCommand(action);
+  const result = await runCommand(action);
+
+  if (result === "menu") {
+    await showMenu();
+    return;
+  }
 
   let nextAction = await askNextStep(action);
 
   while (nextAction !== "menu" && nextAction !== "exit") {
-    await runCommand(nextAction);
+    const cmdResult = await runCommand(nextAction);
+    if (cmdResult === "menu") {
+      await showMenu();
+      return;
+    }
     nextAction = await askNextStep(nextAction);
   }
 

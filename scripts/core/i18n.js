@@ -405,10 +405,9 @@ ${content}
 
     if (content !== originalContent) {
       fs.writeFileSync(targetPath, content, "utf-8");
-      indent(`✓ ${config.file} (${replaceCount} 处替换)`, 2);
     }
 
-    return { files: 1, replacements: replaceCount };
+    return { files: 1, replacements: replaceCount, file: config.file };
   }
 
   /**
@@ -444,17 +443,30 @@ ${content}
 
     let totalFiles = 0;
     let totalReplacements = 0;
+    const appliedFiles = [];
 
     for (const config of configs) {
       const result = this.applyConfig(config);
-      totalFiles += result.files;
-      totalReplacements += result.replacements;
+      if (result.replacements > 0) {
+        totalFiles += result.files;
+        totalReplacements += result.replacements;
+        appliedFiles.push({ file: result.file, count: result.replacements });
+      }
     }
 
-    if (!silent) {
+    if (!silent && appliedFiles.length > 0) {
+      const maxShow = 3;
+      appliedFiles.slice(0, maxShow).forEach((f) => {
+        indent(`✓ ${f.file} (${f.count} 处替换)`, 2);
+      });
+      if (appliedFiles.length > maxShow) {
+        indent(`... 还有 ${appliedFiles.length - maxShow} 个文件`, 2);
+      }
       success(
         `汉化应用完成: ${totalFiles} 个文件, ${totalReplacements} 处替换`,
       );
+    } else if (!silent) {
+      success("无需替换，所有文本已是中文");
     }
 
     return {
@@ -590,31 +602,36 @@ ${content}
       }
     }
 
-    // 计算文件覆盖率
+    // 分析未配置的文件
     const coveredFiles = sourceFiles.filter((f) =>
       configuredFiles.has(f),
     ).length;
-    const fileCoverage =
-      sourceFiles.length > 0 ? (coveredFiles / sourceFiles.length) * 100 : 100;
-
-    // 分析未覆盖的文件
     const uncoveredFiles = sourceFiles.filter((f) => !configuredFiles.has(f));
     const uncoveredAnalysis = uncoveredFiles.map((f) => ({
       file: f,
       ...this.analyzeFile(f),
     }));
 
-    // 分类统计未覆盖文件
+    // 分类：需要翻译 vs 不需要翻译
     const needTranslate = uncoveredAnalysis.filter((f) => f.hasUIText);
     const noNeedTranslate = uncoveredAnalysis.filter((f) => !f.hasUIText);
+
+    // 计算真实覆盖率：有配置 + 不需要翻译 = 已完成
+    const effectivelyCovered = coveredFiles + noNeedTranslate.length;
+    const fileCoverage =
+      sourceFiles.length > 0
+        ? (effectivelyCovered / sourceFiles.length) * 100
+        : 100;
 
     return {
       files: {
         total: sourceFiles.length,
-        covered: coveredFiles,
-        uncovered: uncoveredFiles.length,
+        covered: effectivelyCovered,
+        configuredFiles: coveredFiles,
+        skippedFiles: noNeedTranslate.length,
+        uncovered: needTranslate.length,
         coverage: fileCoverage,
-        uncoveredList: uncoveredFiles,
+        uncoveredList: needTranslate.map((f) => f.file),
       },
       translations: {
         total: totalReplacements,
@@ -633,7 +650,7 @@ ${content}
    */
   showCoverageReport() {
     const stats = this.getCoverageStats();
-    const { colors, S } = require("./colors.js");
+    const { colors, S, out } = require("./colors.js");
     const c = colors;
 
     step("汉化覆盖率");
@@ -651,15 +668,15 @@ ${content}
 
     const pct = stats.files.coverage.toFixed(1);
 
-    console.log(`${c.gray}${S.BAR}${c.reset}`);
-    console.log(
+    out(`${c.gray}${S.BAR}${c.reset}`);
+    out(
       `${c.gray}${S.BAR}${c.reset}  ${coverageColor}${c.bold}${pct}%${c.reset}  ${c.gray}${"▓".repeat(filled)}${"░".repeat(empty)}${c.reset}`,
     );
-    console.log(`${c.gray}${S.BAR}${c.reset}`);
-    console.log(
-      `${c.gray}${S.BAR}${c.reset}  ${c.cyan}文件${c.reset} ${stats.files.covered}/${stats.files.total}    ${c.cyan}翻译${c.reset} ${stats.translations.total} 条`,
+    out(`${c.gray}${S.BAR}${c.reset}`);
+    out(
+      `${c.gray}${S.BAR}${c.reset}  ${c.cyan}文件${c.reset} ${stats.files.configuredFiles}/${stats.files.total}    ${c.cyan}翻译${c.reset} ${stats.translations.total} 条`,
     );
-    console.log(`${c.gray}${S.BAR}${c.reset}`);
+    out(`${c.gray}${S.BAR}${c.reset}`);
 
     const categoryInfo = {
       dialogs: { emoji: "💬", name: "对话框" },
@@ -672,7 +689,7 @@ ${content}
     for (const [cat, info] of Object.entries(categoryInfo)) {
       const data = stats.categories[cat];
       if (data) {
-        console.log(
+        out(
           `${c.gray}${S.BAR}${c.reset}  ${info.emoji} ${c.dim}${info.name}${c.reset}  ${data.files} 文件 / ${data.replacements} 条`,
         );
       }
@@ -682,32 +699,34 @@ ${content}
       const { needTranslate, noNeedTranslate } = stats.uncoveredAnalysis;
 
       if (needTranslate.length > 0) {
-        console.log(`${c.gray}${S.BAR}${c.reset}`);
-        console.log(
+        out(`${c.gray}${S.BAR}${c.reset}`);
+        out(
           `${c.gray}${S.BAR}${c.reset}  ${c.yellow}⚠ 待翻译 ${needTranslate.length} 个文件${c.reset}`,
         );
         needTranslate.slice(0, 3).forEach((f) => {
           const shortPath = f.file.replace("src/cli/cmd/tui/", "");
-          console.log(
+          out(
             `${c.gray}${S.BAR}${c.reset}    ${c.dim}→ ${shortPath}${c.reset}`,
           );
         });
         if (needTranslate.length > 3) {
-          console.log(
+          out(
             `${c.gray}${S.BAR}${c.reset}    ${c.dim}... 还有 ${needTranslate.length - 3} 个${c.reset}`,
           );
         }
       }
 
       if (noNeedTranslate.length > 0) {
-        console.log(`${c.gray}${S.BAR}${c.reset}`);
-        console.log(
+        out(`${c.gray}${S.BAR}${c.reset}`);
+        out(
           `${c.gray}${S.BAR}${c.reset}  ${c.dim}○ 跳过 ${noNeedTranslate.length} 个文件（无 UI 文本）${c.reset}`,
         );
       }
-    } else {
-      console.log(`${c.gray}${S.BAR}${c.reset}`);
-      console.log(
+    }
+
+    if (stats.files.coverage >= 100) {
+      out(`${c.gray}${S.BAR}${c.reset}`);
+      out(
         `${c.gray}${S.BAR}${c.reset}  ${c.green}✓ 所有文件都已覆盖！${c.reset}`,
       );
     }
@@ -760,6 +779,9 @@ ${content}
     };
 
     await translator.generateCoverageSummary(summaryContext);
+
+    const { flushStream } = require("./colors.js");
+    await flushStream();
 
     return stats;
   }

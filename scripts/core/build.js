@@ -14,7 +14,14 @@ const {
   getPlatform,
 } = require("./utils.js");
 const { getBunPath } = require("./env.js");
-const { step, success, error, warn, indent, createSpinner } = require("./colors.js");
+const {
+  step,
+  success,
+  error,
+  warn,
+  indent,
+  createSpinner,
+} = require("./colors.js");
 
 function getBuildPlatform() {
   const { platform, arch } = getPlatform();
@@ -73,15 +80,18 @@ class Builder {
       return true;
     }
 
-    const spinner = createSpinner('小兔子正在收集依赖', 'bunny');
+    const spinner = createSpinner("安装依赖");
     if (!silent) spinner.start();
 
     try {
-      await execLive(this.bunPath, ["install"], { cwd: this.buildDir });
-      if (!silent) spinner.stop('依赖安装完成');
+      await execLive(this.bunPath, ["install"], {
+        cwd: this.buildDir,
+        silent: true,
+      });
+      if (!silent) spinner.stop("安装完成");
       return true;
     } catch (e) {
-      if (!silent) spinner.fail('依赖安装失败');
+      if (!silent) spinner.fail("依赖安装失败");
       error(`${e.message}`);
       return false;
     }
@@ -94,7 +104,7 @@ class Builder {
     this.checkEnvironment();
     await this.installDependencies({ silent });
 
-    const spinner = createSpinner('小火箭正在努力构建', 'rocket');
+    const spinner = createSpinner("编译构建");
     if (!silent) spinner.start();
 
     try {
@@ -107,11 +117,15 @@ class Builder {
         env.OPENCODE_CHANNEL = "latest";
       }
 
-      await execLive(this.bunPath, args, { cwd: this.buildDir, env });
-      if (!silent) spinner.stop('编译完成');
+      await execLive(this.bunPath, args, {
+        cwd: this.buildDir,
+        env,
+        silent: true,
+      });
+      if (!silent) spinner.stop("编译完成");
       return true;
     } catch (e) {
-      if (!silent) spinner.fail('编译失败');
+      if (!silent) spinner.fail("编译失败");
       error(`${e.message}`);
       return false;
     }

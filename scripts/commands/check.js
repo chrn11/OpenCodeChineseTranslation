@@ -243,7 +243,7 @@ async function run(options = {}) {
 
   for (const [file, items] of Object.entries(byFile)) {
     if (!verbose && shown >= 5) {
-      log(`... 还有 ${fileCount - shown} 个文件有遗漏`);
+      indent(`... 还有 ${fileCount - shown} 个文件有遗漏`);
       break;
     }
 

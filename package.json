@@ -11,10 +11,18 @@
     "check": "node scripts/bin/opencodenpm check",
     "full": "node scripts/bin/opencodenpm full"
   },
-  "keywords": ["opencode", "i18n", "chinese", "汉化"],
+  "keywords": [
+    "opencode",
+    "i18n",
+    "chinese",
+    "汉化"
+  ],
   "author": "OpenCode Chinese Translation Team",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "blessed": "^0.1.81"
   }
 }

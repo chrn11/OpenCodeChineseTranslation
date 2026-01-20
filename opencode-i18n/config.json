@@ -1,10 +1,10 @@
 {
-    "version": "1.1.26-zh",
-    "opencodeVersion": "1.1.26",
+    "version": "1.1.27-zh",
+    "opencodeVersion": "1.1.27",
     "description": "OpenCode 中文汉化配置文件（模块化结构）",
     "lastUpdate": "2026-01-20",
     "testPassRate": "100%",
-    "supportedCommit": "36f5ba52e9c7dc657fa7c3c856e1bafd827cd314",
+    "supportedCommit": "e521fee0023a604bb6d5ef39b4b892cbf1a0f9d4",
     "maintainer": {
         "name": "CodeCreator",
         "wechat": "CodeCreator",
