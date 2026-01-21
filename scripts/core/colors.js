@@ -3,28 +3,55 @@
  * 使用 clack 风格的视觉设计
  */
 
-const colors = {
-  reset: "\x1b[0m",
-  bold: "\x1b[1m",
-  dim: "\x1b[2m",
-  black: "\x1b[30m",
-  red: "\x1b[31m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  blue: "\x1b[34m",
-  magenta: "\x1b[35m",
-  cyan: "\x1b[36m",
-  white: "\x1b[37m",
-  gray: "\x1b[90m",
-  bgBlack: "\x1b[40m",
-  bgRed: "\x1b[41m",
-  bgGreen: "\x1b[42m",
-  bgYellow: "\x1b[43m",
-  bgBlue: "\x1b[44m",
-  bgMagenta: "\x1b[45m",
-  bgCyan: "\x1b[46m",
-  bgWhite: "\x1b[47m",
-};
+const PLAIN_MODE = ["1", "true", "yes"].includes(
+  String(process.env.OPENCODECN_PLAIN || "").toLowerCase(),
+);
+
+const colors = PLAIN_MODE
+  ? {
+      reset: "",
+      bold: "",
+      dim: "",
+      black: "",
+      red: "",
+      green: "",
+      yellow: "",
+      blue: "",
+      magenta: "",
+      cyan: "",
+      white: "",
+      gray: "",
+      bgBlack: "",
+      bgRed: "",
+      bgGreen: "",
+      bgYellow: "",
+      bgBlue: "",
+      bgMagenta: "",
+      bgCyan: "",
+      bgWhite: "",
+    }
+  : {
+      reset: "\x1b[0m",
+      bold: "\x1b[1m",
+      dim: "\x1b[2m",
+      black: "\x1b[30m",
+      red: "\x1b[31m",
+      green: "\x1b[32m",
+      yellow: "\x1b[33m",
+      blue: "\x1b[34m",
+      magenta: "\x1b[35m",
+      cyan: "\x1b[36m",
+      white: "\x1b[37m",
+      gray: "\x1b[90m",
+      bgBlack: "\x1b[40m",
+      bgRed: "\x1b[41m",
+      bgGreen: "\x1b[42m",
+      bgYellow: "\x1b[43m",
+      bgBlue: "\x1b[44m",
+      bgMagenta: "\x1b[45m",
+      bgCyan: "\x1b[46m",
+      bgWhite: "\x1b[47m",
+    };
 
 const S = {
   BAR: "│",
@@ -154,32 +181,44 @@ function groupEnd() {
 
 function nestedStep(title) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(`${bar}  ${colors.cyan}├─${colors.reset} ${colors.bold}${title}${colors.reset}`);
+  out(
+    `${bar}  ${colors.cyan}├─${colors.reset} ${colors.bold}${title}${colors.reset}`,
+  );
 }
 
 function nestedContent(message) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(`${bar}  ${colors.cyan}│${colors.reset}   ${colors.dim}${message}${colors.reset}`);
+  out(
+    `${bar}  ${colors.cyan}│${colors.reset}   ${colors.dim}${message}${colors.reset}`,
+  );
 }
 
 function nestedSuccess(message) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(`${bar}  ${colors.cyan}│${colors.reset}   ${colors.green}${S.SUCCESS}${colors.reset} ${message}`);
+  out(
+    `${bar}  ${colors.cyan}│${colors.reset}   ${colors.green}${S.SUCCESS}${colors.reset} ${message}`,
+  );
 }
 
 function nestedWarn(message) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(`${bar}  ${colors.cyan}│${colors.reset}   ${colors.yellow}${S.WARN}${colors.reset} ${message}`);
+  out(
+    `${bar}  ${colors.cyan}│${colors.reset}   ${colors.yellow}${S.WARN}${colors.reset} ${message}`,
+  );
 }
 
 function nestedError(message) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(`${bar}  ${colors.cyan}│${colors.reset}   ${colors.red}${S.ERROR}${colors.reset} ${message}`);
+  out(
+    `${bar}  ${colors.cyan}│${colors.reset}   ${colors.red}${S.ERROR}${colors.reset} ${message}`,
+  );
 }
 
 function nestedKv(key, value) {
   const bar = `${colors.gray}${S.BAR}${colors.reset}`;
-  out(`${bar}  ${colors.cyan}│${colors.reset}   ${colors.dim}${key}${colors.reset}  ${value}`);
+  out(
+    `${bar}  ${colors.cyan}│${colors.reset}   ${colors.dim}${key}${colors.reset}  ${value}`,
+  );
 }
 
 function nestedFinal(message, type = "success") {
@@ -586,11 +625,19 @@ class Spinner {
     }
 
     if (!process.stdout.isTTY) {
-      const icon = isSuccess ? "✓" : "✗";
-      const iconColor = isSuccess ? colors.green : colors.red;
-      out(
-        `${colors.gray}${S.BAR}${colors.reset}  ${iconColor}${icon}${colors.reset} ${finalText || this.text}`,
-      );
+      if (finalText) {
+        const icon = isSuccess ? "✓" : "✗";
+        const iconColor = isSuccess ? colors.green : colors.red;
+        out(
+          `${colors.gray}${S.BAR}${colors.reset}  ${iconColor}${icon}${colors.reset} ${finalText}`,
+        );
+      }
+      return this;
+    }
+
+    // 如果没有 finalText，完全清除 spinner
+    if (!finalText) {
+      process.stdout.write("\r\x1b[K");
       return this;
     }
 
@@ -610,7 +657,7 @@ class Spinner {
         : `${colors.red}✗${colors.reset}`;
       const textColor = isSuccess ? colors.reset : colors.red;
       process.stdout.write(
-        `\r${colors.gray}${S.BAR}${colors.reset}  ${icon} ${textColor}${finalText || this.text}${colors.reset} ${bar}        \n`,
+        `\r${colors.gray}${S.BAR}${colors.reset}  ${icon} ${textColor}${finalText}${colors.reset} ${bar}        \n`,
       );
     } else if (this.themeName === "gradient") {
       const successBar =
@@ -619,13 +666,13 @@ class Spinner {
       const bar = isSuccess ? successBar : failBar;
       const textColor = isSuccess ? colors.reset : colors.red;
       process.stdout.write(
-        `\r${colors.gray}${S.BAR}${colors.reset}  ${colors.green}✓${colors.reset} ${textColor}${finalText || this.text}${colors.reset} ${bar}        \n`,
+        `\r${colors.gray}${S.BAR}${colors.reset}  ${colors.green}✓${colors.reset} ${textColor}${finalText}${colors.reset} ${bar}        \n`,
       );
     } else {
       const msg = isSuccess ? this.theme.success : this.theme.fail;
       const color = isSuccess ? colors.green : colors.red;
       process.stdout.write(
-        `\r${colors.gray}${S.BAR}${colors.reset}  ${finalText || this.text} ${color}${msg}${colors.reset}        \n`,
+        `\r${colors.gray}${S.BAR}${colors.reset}  ${finalText} ${color}${msg}${colors.reset}        \n`,
       );
     }
     return this;
@@ -750,6 +797,7 @@ function statusBadge(status) {
 
 module.exports = {
   colors,
+  isPlainMode: () => PLAIN_MODE,
   colorize,
   log,
   separator,

@@ -13,13 +13,19 @@ const {
   getBinDir,
   getPlatform,
 } = require("./utils.js");
-const { getBunPath } = require("./env.js");
+const { ensureBun, addBunToPath, REQUIRED_BUN_VERSION } = require("./env.js");
+const { loadUserConfig } = require("./user-config.js");
 const {
   step,
   success,
   error,
   warn,
   indent,
+  nestedStep,
+  nestedSuccess,
+  nestedWarn,
+  nestedError,
+  nestedContent,
   createSpinner,
 } = require("./colors.js");
 
@@ -27,14 +33,14 @@ function getBuildPlatform() {
   const { platform, arch } = getPlatform();
   const platformMap = {
     darwin: `darwin-${arch}`,
-    linux: "linux-x64",
-    win32: "windows-x64",
+    linux: `linux-${arch}`,
+    win32: arch === "arm64" ? "windows-arm64" : "windows-x64",
   };
   return platformMap[platform] || "linux-x64";
 }
 
 /**
- * 获取汉化版本号（从官方源码 package.json 读取，加上 -zh 后缀）
+ * 获取汉化版本号
  */
 function getChineseVersion() {
   try {
@@ -58,54 +64,141 @@ class Builder {
   constructor() {
     this.opencodeDir = getOpencodeDir();
     this.buildDir = path.join(this.opencodeDir, "packages", "opencode");
-    this.bunPath = getBunPath();
+    this.bunPath = null;
   }
 
-  checkEnvironment() {
-    if (!this.bunPath) {
-      throw new Error("未找到 Bun，请先安装: npm install -g bun");
+  /**
+   * 确保 Bun 可用（检测 + 自动安装）
+   * 始终使用 "bun" 命令，避免路径格式问题
+   */
+  async initBun() {
+    if (this.bunPath) return this.bunPath;
+
+    // 先确保 PATH 包含 bun
+    addBunToPath();
+
+    const result = await ensureBun();
+    if (!result.ok) {
+      throw new Error(
+        `无法获取 Bun，请手动安装 v${REQUIRED_BUN_VERSION} 后重试\n` +
+          `  安装命令: curl -fsSL https://bun.sh/install | bash -s "bun-v${REQUIRED_BUN_VERSION}"`,
+      );
     }
+
+    // 始终使用 "bun" 命令，让系统从 PATH 中查找
+    this.bunPath = "bun";
+    return this.bunPath;
+  }
+
+  async checkEnvironment() {
+    await this.initBun();
     if (!exists(this.buildDir)) {
-      throw new Error(`构建目录不存在: ${this.buildDir}`);
+      throw new Error(
+        `构建目录不存在: ${this.buildDir}\n请先运行: opencodenpm sync`,
+      );
     }
   }
 
   async installDependencies(options = {}) {
-    const { silent = false } = options;
-    if (!silent) step("安装依赖");
+    const { silent = false, force = false, nested = false } = options;
+    const outputStep = nested ? nestedStep : step;
+    const outputWarn = nested ? nestedWarn : warn;
+    const outputError = nested ? nestedError : error;
+    const outputSuccess = nested ? nestedSuccess : success;
+    const outputContent = nested ? nestedContent : (m) => indent(m, 2);
+
+    if (!silent && !nested) outputStep("安装依赖");
+
+    await this.initBun();
+    const config = loadUserConfig();
+    const registry = config.npmRegistry;
 
     const nodeModulesPath = path.join(this.buildDir, "node_modules");
-    if (exists(nodeModulesPath)) {
-      if (!silent) warn("依赖已存在，跳过安装");
+    const hasDeps =
+      exists(nodeModulesPath) && fs.readdirSync(nodeModulesPath).length > 5;
+
+    if (hasDeps && !force) {
+      if (!silent) {
+        if (nested) {
+          outputContent("依赖已存在，跳过安装");
+        } else {
+          outputWarn("依赖已存在，跳过安装（使用 --force 强制重装）");
+        }
+      }
       return true;
     }
 
-    const spinner = createSpinner("安装依赖");
-    if (!silent) spinner.start();
-
     try {
-      await execLive(this.bunPath, ["install"], {
-        cwd: this.buildDir,
-        silent: true,
-      });
-      if (!silent) spinner.stop("安装完成");
+      const args = ["install", "--frozen-lockfile"];
+      if (registry) args.push("--registry", registry);
+
+      if (silent) {
+        await execLive("bun", args, {
+          cwd: this.buildDir,
+          silent: true,
+          timeoutMs: 15 * 60 * 1000,
+        });
+        return true;
+      }
+
+      const spinner = createSpinner("正在安装依赖...");
+      spinner.start();
+      let seconds = 0;
+      const tick = setInterval(() => {
+        seconds += 1;
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        const time = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        spinner.update(`正在安装依赖... ${time}`);
+      }, 1000);
+      try {
+        await execLive("bun", args, {
+          cwd: this.buildDir,
+          silent: true,
+          timeoutMs: 15 * 60 * 1000,
+        });
+        clearInterval(tick);
+        const finalTime =
+          seconds > 60
+            ? `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+            : `${seconds}s`;
+        spinner.stop(`依赖安装完成 (${finalTime})`);
+      } catch (err) {
+        clearInterval(tick);
+        throw err;
+      }
+
+      if (!nested) outputSuccess("依赖安装完成");
       return true;
     } catch (e) {
-      if (!silent) spinner.fail("依赖安装失败");
-      error(`${e.message}`);
+      outputError(`${e.message}`);
+      if (!nested) {
+        outputContent("可能的解决方案:");
+        outputContent("1. 检查网络连接");
+        if (!registry) {
+          outputContent("2. 尝试配置国内镜像源 (运行 opencodenpm ai)");
+        }
+        outputContent("3. 删除 node_modules 后重试");
+      }
       return false;
     }
   }
 
   async build(options = {}) {
-    const { silent = false } = options;
-    if (!silent) step("编译构建");
+    const { silent = false, nested = false } = options;
+    const outputStep = nested ? nestedStep : step;
+    const outputError = nested ? nestedError : error;
+    const outputSuccess = nested ? nestedSuccess : success;
+    const outputContent = nested ? nestedContent : (m) => indent(m, 2);
 
-    this.checkEnvironment();
-    await this.installDependencies({ silent });
+    if (!silent && !nested) outputStep("编译构建");
 
-    const spinner = createSpinner("编译构建");
-    if (!silent) spinner.start();
+    await this.checkEnvironment();
+
+    const depResult = await this.installDependencies({ silent, nested });
+    if (!depResult) {
+      return false;
+    }
 
     try {
       const args = ["run", "script/build.ts", "--single"];
@@ -117,16 +210,49 @@ class Builder {
         env.OPENCODE_CHANNEL = "latest";
       }
 
-      await execLive(this.bunPath, args, {
-        cwd: this.buildDir,
-        env,
-        silent: true,
-      });
-      if (!silent) spinner.stop("编译完成");
+      if (silent) {
+        await execLive("bun", args, {
+          cwd: this.buildDir,
+          env,
+          silent: true,
+          timeoutMs: 30 * 60 * 1000,
+        });
+        return true;
+      }
+
+      const spinner = createSpinner("正在编译 OpenCode...");
+      spinner.start();
+      let seconds = 0;
+      const tick = setInterval(() => {
+        seconds += 1;
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        const time = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        const stage =
+          seconds < 30 ? "Bundling" : seconds < 180 ? "Compiling" : "Packaging";
+        spinner.update(`正在编译 OpenCode (${stage})... ${time}`);
+      }, 1000);
+      try {
+        await execLive("bun", args, {
+          cwd: this.buildDir,
+          env,
+          silent: true,
+          timeoutMs: 30 * 60 * 1000,
+        });
+        clearInterval(tick);
+        const finalTime =
+          seconds > 60
+            ? `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+            : `${seconds}s`;
+        spinner.stop(`编译完成 (${finalTime})`);
+      } catch (err) {
+        clearInterval(tick);
+        throw err;
+      }
+
       return true;
     } catch (e) {
-      if (!silent) spinner.fail("编译失败");
-      error(`${e.message}`);
+      outputError(`${e.message}`);
       return false;
     }
   }
@@ -143,9 +269,20 @@ class Builder {
     );
   }
 
+  getDistDir() {
+    const platform = getBuildPlatform();
+    return path.join(this.buildDir, "dist", `opencode-${platform}`);
+  }
+
   async deployToLocal(options = {}) {
-    const { silent = false } = options;
-    if (!silent) step("部署到本地环境");
+    const { silent = false, nested = false } = options;
+    const outputStep = nested ? nestedStep : step;
+    const outputWarn = nested ? nestedWarn : warn;
+    const outputSuccess = nested ? nestedSuccess : success;
+    const outputContent = nested ? nestedContent : (m) => indent(m, 2);
+    const outputError = nested ? nestedError : error;
+
+    if (!silent) outputStep("部署到本地");
 
     const binDir = getBinDir();
     if (!exists(binDir)) {
@@ -153,24 +290,28 @@ class Builder {
     }
 
     const sourcePath = this.getDistPath();
-    const destPath = path.join(binDir, "opencode");
+    const { isWindows } = getPlatform();
+    const destName = isWindows ? "opencode.exe" : "opencode";
+    const destPath = path.join(binDir, destName);
 
     if (!exists(sourcePath)) {
-      if (!silent) warn("编译产物不存在，请先运行 build");
+      if (!silent) outputWarn("编译产物不存在，请先运行 build");
       return false;
     }
 
     try {
       fs.copyFileSync(sourcePath, destPath);
-      fs.chmodSync(destPath, 0o755);
+      if (!isWindows) {
+        fs.chmodSync(destPath, 0o755);
+      }
       const stats = fs.statSync(destPath);
       if (!silent) {
-        success(`已部署到: ${destPath}`);
-        indent(`大小: ${formatSize(stats.size)}`, 2);
+        outputSuccess(`已部署到: ${destPath}`);
+        outputContent(`大小: ${formatSize(stats.size)}`);
       }
       return true;
     } catch (e) {
-      error(`部署失败: ${e.message}`);
+      outputError(`部署失败: ${e.message}`);
       return false;
     }
   }

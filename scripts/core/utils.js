@@ -47,8 +47,10 @@ function getBinDir() {
  * 检查命令是否存在
  */
 function hasCommand(cmd) {
+  const { useUnixCommands } = getPlatform();
   try {
-    execSync(`which ${cmd}`, { stdio: "ignore" });
+    const checker = useUnixCommands ? "which" : "where";
+    execSync(`${checker} ${cmd}`, { stdio: "ignore" });
     return true;
   } catch (e) {
     return false;
@@ -92,7 +94,7 @@ function exec(command, options = {}) {
  * @param {boolean} options.silent - 静默模式，不输出 stdout/stderr
  */
 function execLive(command, args, options = {}) {
-  const { silent = false, ...spawnOptions } = options;
+  const { silent = false, timeoutMs = 0, ...spawnOptions } = options;
 
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -100,11 +102,53 @@ function execLive(command, args, options = {}) {
       ...spawnOptions,
     });
 
+    let captured = "";
+    let timeoutId = null;
+    if (silent) {
+      const append = (chunk) => {
+        if (!chunk) return;
+        captured += chunk.toString("utf-8");
+        if (captured.length > 20000) captured = captured.slice(-20000);
+      };
+      if (child.stdout) child.stdout.on("data", append);
+      if (child.stderr) child.stderr.on("data", append);
+    }
+
+    if (timeoutMs && timeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        try {
+          child.kill("SIGKILL");
+        } catch {}
+        if (silent && captured.trim()) {
+          reject(
+            new Error(
+              `进程超时（${timeoutMs}ms）\n` +
+                `输出片段（末尾）：\n` +
+                captured.trim(),
+            ),
+          );
+        } else {
+          reject(new Error(`进程超时（${timeoutMs}ms）`));
+        }
+      }, timeoutMs);
+    }
+
     child.on("close", (code) => {
+      if (timeoutId) clearTimeout(timeoutId);
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`进程退出，代码: ${code}`));
+        if (silent && captured.trim()) {
+          reject(
+            new Error(
+              `进程退出，代码: ${code}\n` +
+                `输出片段（末尾）：\n` +
+                captured.trim(),
+            ),
+          );
+        } else {
+          reject(new Error(`进程退出，代码: ${code}`));
+        }
       }
     });
 
@@ -191,11 +235,29 @@ function getHomeDir() {
 }
 
 /**
+ * 检测是否在 Git Bash 环境下运行
+ * Git Bash 下 process.platform 仍是 'win32'，但需要使用 Unix 风格的命令
+ */
+function isGitBash() {
+  // Git Bash 设置 MSYSTEM 环境变量
+  if (process.env.MSYSTEM) return true;
+  // Git Bash 通常设置 SHELL 为 /bin/bash 或类似
+  if (process.env.SHELL && process.env.SHELL.includes('/')) return true;
+  // Git Bash 设置 TERM 为 xterm 或类似
+  if (process.env.TERM && process.env.TERM !== 'dumb') {
+    // 在 CMD/PowerShell 下通常没有 TERM 或是 dumb
+    if (process.env.TERM.startsWith('xterm') || process.env.TERM === 'cygwin') return true;
+  }
+  return false;
+}
+
+/**
  * 获取当前平台信息
  */
 function getPlatform() {
   const platform = process.platform; // 'darwin' | 'linux' | 'win32'
   const arch = process.arch; // 'arm64' | 'x64'
+  const gitBash = platform === 'win32' && isGitBash();
   return {
     platform,
     arch,
@@ -203,6 +265,9 @@ function getPlatform() {
     isMac: platform === "darwin",
     isLinux: platform === "linux",
     isArm64: arch === "arm64",
+    isGitBash: gitBash,
+    // 在 Git Bash 下使用 Unix 风格的命令
+    useUnixCommands: platform !== 'win32' || gitBash,
   };
 }
 

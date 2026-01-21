@@ -28,7 +28,7 @@ test("kv 输出键值行", async () => {
     await flushStream();
     assert.equal(logs.length, 1);
     const prefix = `${colors.gray}${S.BAR}${colors.reset}`;
-    assert.equal(logs[0], `${prefix}  ${colors.dim}Key${colors.reset}: Value`);
+    assert.equal(logs[0], `${prefix}  ${colors.dim}Key${colors.reset}  Value`);
   } finally {
     console.log = originalLog;
   }

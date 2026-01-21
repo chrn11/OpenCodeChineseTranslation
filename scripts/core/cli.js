@@ -8,6 +8,7 @@ const { error } = require("./colors.js");
 const { run: runMenu } = require("./menu.js");
 
 const pkg = require("../package.json");
+const { applyUserConfigToEnv } = require("./user-config.js");
 
 // 加载 .env 配置（从项目根目录）
 try {
@@ -18,6 +19,8 @@ try {
   // dotenv 未安装或 .env 不存在，不影响其他功能
 }
 
+applyUserConfigToEnv({ override: false });
+
 const updateCmd = require("../commands/update.js");
 const applyCmd = require("../commands/apply.js");
 const buildCmd = require("../commands/build.js");
@@ -26,6 +29,9 @@ const fullCmd = require("../commands/full.js");
 const deployCmd = require("../commands/deploy.js");
 const syncCmd = require("../commands/sync.js");
 const checkCmd = require("../commands/check.js");
+const versionCmd = require("../commands/version.js");
+const fixCmd = require("../commands/fix.js");
+const aiCmd = require("../commands/ai.js");
 const { checkEnvironment } = require("./env.js");
 
 function createCLI() {
@@ -147,6 +153,7 @@ function createCLI() {
     .description("同步官方版本")
     .option("-y, --yes", "自动确认")
     .option("--check-only", "仅检查")
+    .option("--auto-fix", "同步后自动一键修复并编译")
     .action(async (options) => {
       try {
         const result = await syncCmd.run(options);
@@ -191,6 +198,64 @@ function createCLI() {
           fix: options.fix,
           limit: parseInt(options.limit, 10) || 50,
         });
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // fix - 一键修复语言包并应用编译
+  program
+    .command("fix")
+    .description("一键修复：补齐缺失翻译 + 修复质量 → 应用 → 编译")
+    .option("--dry-run", "仅预览不落盘/不应用/不编译")
+    .option("--skip-update", "跳过官方源码更新")
+    .option("--skip-build", "跳过编译")
+    .option("--no-deploy", "不部署到系统 bin")
+    .action(async (options) => {
+      try {
+        const result = await fixCmd.run({
+          dryRun: options.dryRun,
+          skipUpdate: options.skipUpdate,
+          skipBuild: options.skipBuild,
+          deploy: options.deploy,
+        });
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  program
+    .command("ai")
+    .description("配置 AI（OPENAI_API_KEY/BASE/MODEL）")
+    .option("--show", "显示当前配置")
+    .option("--clear", "清空配置")
+    .action(async (options) => {
+      try {
+        const result = await aiCmd.run({
+          interactive: !options.show && !options.clear,
+          show: Boolean(options.show),
+          clear: Boolean(options.clear),
+        });
+        process.exit(result ? 0 : 1);
+      } catch (e) {
+        error(e.message);
+        process.exit(1);
+      }
+    });
+
+  // version - 版本一致性
+  program
+    .command("version")
+    .description("检查或同步版本号一致性")
+    .option("--sync", "将版本同步到 opencode-i18n/config.json 的 version")
+    .option("--strict", "严格模式：不一致则返回失败状态码")
+    .action(async (options) => {
+      try {
+        const result = await versionCmd.run(options);
         process.exit(result ? 0 : 1);
       } catch (e) {
         error(e.message);

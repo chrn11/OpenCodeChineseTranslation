@@ -21,17 +21,12 @@ const {
   groupEnd,
   kv,
   indent,
+  isPlainMode,
 } = require("./colors.js");
 
-const updateCmd = require("../commands/update.js");
-const applyCmd = require("../commands/apply.js");
-const buildCmd = require("../commands/build.js");
-const verifyCmd = require("../commands/verify.js");
 const fullCmd = require("../commands/full.js");
-const deployCmd = require("../commands/deploy.js");
-const syncCmd = require("../commands/sync.js");
-const checkCmd = require("../commands/check.js");
-const Translator = require("./translator.js");
+const fixCmd = require("../commands/fix.js");
+const aiCmd = require("../commands/ai.js");
 
 function getVersionInfo() {
   try {
@@ -67,8 +62,8 @@ function getBuildPlatform() {
   const { platform, arch } = getPlatform();
   const map = {
     darwin: `darwin-${arch}`,
-    linux: "linux-x64",
-    win32: "windows-x64",
+    linux: `linux-${arch}`,
+    win32: arch === "arm64" ? "windows-arm64" : "windows-x64",
   };
   return map[platform] || "linux-x64";
 }
@@ -98,7 +93,12 @@ function getDistDir() {
 }
 
 function makeClickable(text, filePath) {
+  if (isPlainMode()) return text;
   return `\x1b]8;;file://${filePath}\x07${text}\x1b]8;;\x07`;
+}
+
+function label(icon, text) {
+  return isPlainMode() ? text : `${icon} ${text}`;
 }
 
 function showEnvInfo() {
@@ -108,7 +108,7 @@ function showEnvInfo() {
   const node = checkNode();
   const bun = checkBun();
   const git = checkGit();
-  const { platform, arch, isMac, isWindows } = getPlatform();
+  const { platform, arch, isMac, isWindows, useUnixCommands } = getPlatform();
   const platformNames = { darwin: "macOS", linux: "Linux", win32: "Windows" };
 
   groupStart("系统环境");
@@ -158,7 +158,7 @@ function showEnvInfo() {
   const runningInfo = isOpencodeRunning();
   let ocPath = null;
   try {
-    const cmd = isWindows ? "where opencode" : "which opencode";
+    const cmd = useUnixCommands ? "which opencode" : "where opencode";
     ocPath = execSync(cmd, {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
@@ -216,138 +216,28 @@ function showEnvInfo() {
 }
 
 const MENU_OPTIONS = [
-  { value: "full", label: "🚀 一键汉化", hint: "自动化执行所有步骤" },
-  { value: "sync", label: "🔄 同步官方", hint: "获取最新上游代码" },
-  { value: "apply", label: "🌐 应用汉化", hint: "执行翻译 (支持增量)" },
-  { value: "build", label: "🔨 编译部署", hint: "编译并安装到系统" },
-  { value: "check", label: "🔍 检查翻译", hint: "诊断翻译遗漏与质量" },
-  { value: "exit", label: "👋 退出程序" },
+  { value: "full", label: label("🚀", "一键汉化"), hint: "下载/更新 → 扫描 → 汉化 → 检查 → 应用 → 构建 → 部署" },
+  { value: "fix", label: label("🩹", "一键修复"), hint: "扫描 → 汉化 → 检查 → 修复 → 应用 → 构建 → 部署" },
+  { value: "ai", label: label("⚙️", "配置 AI"), hint: "设置 OPENAI_API_KEY/BASE/MODEL（编译版也可用）" },
+  { value: "exit", label: label("👋", "退出程序") },
 ];
 
 const NEXT_STEP_MAP = {
-  sync: {
-    recommended: "apply",
-    options: [
-      { value: "apply", label: "🌐 立即应用汉化" },
-      { value: "menu", label: "📋 返回主菜单" },
-      { value: "exit", label: "👋 退出程序" },
-    ],
-  },
-  apply: {
-    recommended: "build",
-    options: [
-      { value: "build", label: "🔨 立即编译部署" },
-      { value: "check", label: "🔍 检查翻译质量" },
-      { value: "menu", label: "📋 返回主菜单" },
-      { value: "exit", label: "👋 退出程序" },
-    ],
-  },
-  build: {
-    recommended: "exit",
-    options: [
-      { value: "exit", label: "👋 退出 (试用新版)" },
-      { value: "menu", label: "📋 返回主菜单" },
-    ],
-  },
   full: {
-    recommended: "exit",
+    recommended: "menu",
     options: [
-      { value: "exit", label: "👋 退出程序" },
-      { value: "menu", label: "📋 返回主菜单" },
+      { value: "menu", label: label("📋", "返回主菜单") },
+      { value: "exit", label: label("👋", "退出程序") },
     ],
   },
-  check: {
-    recommended: "apply",
+  fix: {
+    recommended: "menu",
     options: [
-      { value: "apply", label: "🌐 修复/应用汉化" },
-      { value: "menu", label: "📋 返回主菜单" },
-      { value: "exit", label: "👋 退出程序" },
+      { value: "menu", label: label("📋", "返回主菜单") },
+      { value: "exit", label: label("👋", "退出程序") },
     ],
   },
 };
-
-async function showApplySubMenu() {
-  const mode = await p.select({
-    message: "选择翻译模式",
-    options: [
-      { value: "full", label: "🌐 全量翻译", hint: "扫描所有文件" },
-      { value: "incremental", label: "⚡ 增量翻译", hint: "仅 git 变更文件" },
-      { value: "back", label: "← 返回" },
-    ],
-    initialValue: "full",
-  });
-
-  if (p.isCancel(mode) || mode === "back") {
-    return "back";
-  }
-
-  blank();
-
-  if (mode === "full") {
-    await applyCmd.run({});
-  } else {
-    await applyCmd.run({ incremental: true });
-  }
-
-  return "success";
-}
-
-async function showBuildSubMenu() {
-  const action = await p.select({
-    message: "选择操作",
-    options: [
-      { value: "both", label: "🔨 编译 + 部署", hint: "推荐" },
-      { value: "build", label: "📦 仅编译", hint: "生成可执行文件" },
-      { value: "deploy", label: "🚀 仅部署", hint: "安装到系统 PATH" },
-      { value: "back", label: "← 返回" },
-    ],
-    initialValue: "both",
-  });
-
-  if (p.isCancel(action) || action === "back") {
-    return "back";
-  }
-
-  blank();
-
-  if (action === "both" || action === "build") {
-    await buildCmd.run({});
-  }
-
-  if (action === "both" || action === "deploy") {
-    if (action === "both") blank();
-    await deployCmd.run({});
-  }
-
-  return "success";
-}
-
-async function showCheckSubMenu() {
-  const action = await p.select({
-    message: "选择检查类型",
-    options: [
-      { value: "quality", label: "🔍 质量检查", hint: "AI 审查翻译质量" },
-      { value: "missing", label: "📋 遗漏扫描", hint: "检查未翻译文本" },
-      { value: "back", label: "← 返回" },
-    ],
-    initialValue: "quality",
-  });
-
-  if (p.isCancel(action) || action === "back") {
-    return "back";
-  }
-
-  blank();
-
-  if (action === "quality") {
-    const translator = new Translator();
-    await translator.showQualityReport();
-  } else {
-    await checkCmd.run({ verbose: false });
-  }
-
-  return "success";
-}
 
 async function runCommand(cmd) {
   blank();
@@ -357,26 +247,14 @@ async function runCommand(cmd) {
       case "full":
         await fullCmd.run({ auto: false });
         break;
-      case "sync":
-        await syncCmd.run({});
+      case "fix":
+        await fixCmd.run({});
         break;
-      case "apply": {
-        const result = await showApplySubMenu();
-        if (result === "back") return "menu";
+      case "ai":
+        await aiCmd.run({ interactive: true });
         break;
-      }
-      case "build": {
-        const result = await showBuildSubMenu();
-        if (result === "back") return "menu";
-        break;
-      }
-      case "check": {
-        const result = await showCheckSubMenu();
-        if (result === "back") return "menu";
-        break;
-      }
       case "exit":
-        p.outro(color.cyan("🐰 再见~ 下次见！"));
+        p.outro(color.cyan(isPlainMode() ? "再见~ 下次见！" : "🐰 再见~ 下次见！"));
         process.exit(0);
       case "menu":
         return "menu";
@@ -392,8 +270,8 @@ async function askNextStep(currentCmd) {
   const config = NEXT_STEP_MAP[currentCmd] || {
     recommended: "menu",
     options: [
-      { value: "menu", label: "📋 返回菜单" },
-      { value: "exit", label: "👋 退出" },
+      { value: "menu", label: label("📋", "返回菜单") },
+      { value: "exit", label: label("👋", "退出") },
     ],
   };
 
@@ -420,7 +298,13 @@ async function showMenu() {
   const officialVersion = versionInfo.official || "未同步";
 
   p.intro(
-    color.bgCyan(color.black(` 🐰 OpenCode 汉化工具 v${officialVersion} `)),
+    color.bgCyan(
+      color.black(
+        isPlainMode()
+          ? ` OpenCode 汉化工具 v${officialVersion} `
+          : ` 🐰 OpenCode 汉化工具 v${officialVersion} `,
+      ),
+    ),
   );
 
   showEnvInfo();
@@ -437,7 +321,7 @@ async function showMenu() {
   }
 
   if (action === "exit") {
-    p.outro(color.cyan("🐰 再见~ 下次见！"));
+    p.outro(color.cyan(isPlainMode() ? "再见~ 下次见！" : "🐰 再见~ 下次见！"));
     process.exit(0);
   }
 
@@ -462,7 +346,7 @@ async function showMenu() {
   if (nextAction === "menu") {
     await showMenu();
   } else {
-    p.outro(color.cyan("🐰 再见~ 下次见！"));
+    p.outro(color.cyan(isPlainMode() ? "再见~ 下次见！" : "🐰 再见~ 下次见！"));
   }
 }
 

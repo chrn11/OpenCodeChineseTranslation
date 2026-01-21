@@ -1,5 +1,6 @@
 {
   "file": "src/components/link.tsx",
   "description": "链接组件",
+  "deprecated": true,
   "replacements": {}
 }

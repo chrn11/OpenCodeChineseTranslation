@@ -3,22 +3,17 @@
  * 编译构建 OpenCode (macOS ARM64)
  */
 
-const Builder = require('../core/build.js');
+const { runPipeline, printPipelineSummary } = require("../core/pipeline.js");
 
 async function run(options = {}) {
   const { deploy = true } = options;
-  const builder = new Builder();
-
-  // 执行构建
-  const result = await builder.build({ silent: options.silent });
-  if (!result) return false;
-
-  // 部署到本地 bin 目录
-  if (deploy) {
-    await builder.deployToLocal({ silent: options.silent });
-  }
-
-  return true;
+  const res = await runPipeline("build", {
+    skipUpdate: true,
+    skipDeploy: true,
+    buildDeployToLocal: deploy,
+  });
+  printPipelineSummary("build", res);
+  return res.ok;
 }
 
 module.exports = { run };

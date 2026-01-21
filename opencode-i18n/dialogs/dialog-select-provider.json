@@ -1,5 +1,5 @@
 {
-  "file": "src/components/dialog-select-provider.tsx",
+  "file": "src/cli/cmd/tui/component/dialog-provider.tsx",
   "description": "选择提供商对话框",
   "replacements": {
     "title=\"Connect provider\"": "title=\"连接提供商 (Connect provider)\"",

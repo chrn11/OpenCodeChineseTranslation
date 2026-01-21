@@ -5,13 +5,10 @@
 
 const path = require("path");
 const fs = require("fs");
-const os = require("os");
 const { execSync } = require("child_process");
 const readline = require("readline");
 const p = require("@clack/prompts");
 const {
-  getBinDir,
-  getOpencodeDir,
   getPlatform,
   getOpencodeConfigPath,
   ensureDir,
@@ -23,122 +20,10 @@ const {
   warn,
   indent,
   blank,
+  isPlainMode,
 } = require("../core/colors.js");
 const { isOpencodeRunning } = require("../core/env.js");
-
-function getBuildPlatform() {
-  const { platform, arch } = getPlatform();
-  const platformMap = {
-    darwin: `darwin-${arch}`,
-    linux: "linux-x64",
-    win32: "windows-x64",
-  };
-  return platformMap[platform] || "linux-x64";
-}
-
-function getCompiledBinary() {
-  const platform = getBuildPlatform();
-  const ext = platform.startsWith("windows") ? ".exe" : "";
-  const binaryName = `opencode${ext}`;
-
-  const binDir = getBinDir();
-  const localBinary = path.join(binDir, binaryName);
-  if (fs.existsSync(localBinary)) {
-    return localBinary;
-  }
-
-  const opencodeDir = getOpencodeDir();
-  const distBinary = path.join(
-    opencodeDir,
-    "packages",
-    "opencode",
-    "dist",
-    `opencode-${platform}`,
-    "bin",
-    binaryName,
-  );
-  if (fs.existsSync(distBinary)) {
-    return distBinary;
-  }
-
-  warn(`未找到平台 ${platform} 的构建产物`);
-  indent(`期望路径: ${distBinary}`);
-  return null;
-}
-
-function findExistingOpencode() {
-  const { isWindows } = getPlatform();
-  try {
-    const cmd = isWindows ? "where opencode" : "which opencode";
-    const result = execSync(cmd, { encoding: "utf8" }).trim().split("\n")[0];
-    if (result && fs.existsSync(result)) {
-      return result;
-    }
-  } catch (e) {
-    // 忽略
-  }
-  return null;
-}
-
-function getDefaultInstallPath() {
-  const { isWindows, isMac } = getPlatform();
-  const ext = isWindows ? ".exe" : "";
-
-  if (isWindows) {
-    return path.join(process.env.APPDATA || "", "npm", `opencode${ext}`);
-  }
-  if (isMac) {
-    if (fs.existsSync("/opt/homebrew/bin")) {
-      return path.join("/opt/homebrew/bin", "opencode");
-    }
-    return path.join("/usr/local/bin", "opencode");
-  }
-  return path.join(os.homedir(), ".local", "bin", "opencode");
-}
-
-function deploy(binaryPath) {
-  const { isWindows } = getPlatform();
-  const existingPath = findExistingOpencode();
-  let targetPath;
-
-  if (existingPath) {
-    targetPath = existingPath;
-    indent(`检测到已安装: ${existingPath}`);
-  } else {
-    targetPath = getDefaultInstallPath();
-    ensureDir(path.dirname(targetPath));
-  }
-
-  try {
-    fs.copyFileSync(binaryPath, targetPath);
-    if (!isWindows) {
-      fs.chmodSync(targetPath, 0o755);
-    }
-    success(`已部署到: ${targetPath}`);
-    return targetPath;
-  } catch (e) {
-    if (e.code === "EACCES" || e.code === "EPERM") {
-      if (isWindows) {
-        error("部署失败，请以管理员身份运行");
-        return null;
-      }
-      indent(`需要管理员权限...`);
-      try {
-        execSync(
-          `sudo cp "${binaryPath}" "${targetPath}" && sudo chmod 755 "${targetPath}"`,
-          { stdio: "inherit" },
-        );
-        success(`已部署到: ${targetPath}`);
-        return targetPath;
-      } catch (sudoError) {
-        error("部署失败，请手动执行:");
-        indent(`  sudo cp "${binaryPath}" "${targetPath}"`);
-        return null;
-      }
-    }
-    throw e;
-  }
-}
+const { getCompiledBinary, deployBinary } = require("../core/deployer.js");
 
 function askQuestion(question) {
   const rl = readline.createInterface({
@@ -205,7 +90,7 @@ async function promptAutoupdateConfig() {
 
   const configPath = getOpencodeConfigPath();
   blank();
-  warn("💡 提示: 如需禁用版本更新提示");
+  warn(isPlainMode() ? "提示: 如需禁用版本更新提示" : "💡 提示: 如需禁用版本更新提示");
   indent(`配置文件: ${configPath}`);
   indent(`添加配置: "autoupdate": false`);
   blank();
@@ -224,7 +109,7 @@ async function run(options = {}) {
   if (runningInfo.running) {
     const { processes } = runningInfo;
     const { isWindows } = getPlatform();
-    warn("⚠️  检测到 OpenCode 正在运行！");
+    warn(isPlainMode() ? "警告: 检测到 OpenCode 正在运行！" : "⚠️  检测到 OpenCode 正在运行！");
     indent("以下进程可能阻止部署:");
     for (const proc of processes) {
       indent(`  PID ${proc.pid}: ${proc.command}`, 2);
@@ -258,7 +143,7 @@ async function run(options = {}) {
   indent(`源文件: ${binaryPath}`);
 
   try {
-    const result = deploy(binaryPath);
+    const result = deployBinary(binaryPath);
     if (result) {
       blank();
       indent("运行 opencode 启动");
@@ -272,4 +157,4 @@ async function run(options = {}) {
   }
 }
 
-module.exports = { run, getCompiledBinary };
+module.exports = { run };

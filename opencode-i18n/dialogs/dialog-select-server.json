@@ -1,6 +1,7 @@
 {
   "file": "src/components/dialog-select-server.tsx",
   "description": "选择服务器对话框",
+  "deprecated": true,
   "replacements": {
     "title=\"Servers\"": "title=\"服务器 (Servers)\"",
     "description=\"Switch which OpenCode server this app connects to.\"": "description=\"切换此应用连接的 OpenCode 服务器。(Switch which OpenCode server this app connects to.)\"",

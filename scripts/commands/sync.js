@@ -16,17 +16,15 @@ const {
   log,
   kv,
 } = require("../core/colors.js");
-const {
-  getProjectDir,
-  getOpencodeDir,
-  getI18nDir,
-} = require("../core/utils.js");
+const { getProjectDir, getOpencodeDir, getI18nDir } = require("../core/utils.js");
 const {
   updateOpencodeVersion,
   fetchOpencodeVersion,
 } = require("../core/version.js");
 const updateCmd = require("./update.js");
 const I18n = require("../core/i18n.js");
+const { runPipeline } = require("../core/pipeline.js");
+const { printPipelineSummary } = require("../core/pipeline.js");
 
 /**
  * 获取官方版本号
@@ -69,58 +67,19 @@ function getCurrentCommit() {
 /**
  * 获取已配置的文件列表
  */
-function getConfiguredFiles() {
-  const i18n = new I18n();
-  const configs = i18n.loadConfig();
-  const files = new Set();
-
-  for (const config of configs) {
-    if (config.file) {
-      // 移除 packages/opencode/ 前缀（如果有）
-      const normalized = config.file.replace(/^packages\/opencode\//, "");
-      files.add(normalized);
-    }
-  }
-
-  return files;
-}
-
-/**
- * 获取源码文件列表
- */
-function getSourceFiles() {
-  const opencodeDir = getOpencodeDir();
-  const sourceDir = path.join(opencodeDir, "packages", "opencode", "src");
-
-  if (!fs.existsSync(sourceDir)) {
-    return [];
-  }
-
-  const tsxFiles = glob.sync("**/*.tsx", { cwd: sourceDir });
-  const jsxFiles = glob.sync("**/*.jsx", { cwd: sourceDir });
-
-  return [...tsxFiles, ...jsxFiles].map((f) => `src/${f}`);
-}
-
-/**
- * 检查新增的源码文件
- */
 function checkNewFiles() {
-  const configured = getConfiguredFiles();
-  const sourceFiles = getSourceFiles();
+  const i18n = new I18n();
+  const configuredFiles = i18n.getConfiguredFiles();
+  const newFiles = i18n.detectNewFiles();
 
-  const newFiles = sourceFiles.filter((f) => !configured.has(f));
-  const removedFiles = [...configured].filter((f) => {
-    // 只检查 TUI 相关文件
-    if (!f.startsWith("src/cli/cmd/tui/")) return false;
-    return !sourceFiles.includes(f);
-  });
+  const tuiPath = path.join(getOpencodeDir(), "packages", "opencode", "src/cli/cmd/tui");
+  const total = fs.existsSync(tuiPath) ? glob.sync("**/*.tsx", { cwd: tuiPath }).length : 0;
 
   return {
     newFiles,
-    removedFiles,
-    total: sourceFiles.length,
-    configured: configured.size,
+    removedFiles: [],
+    total,
+    configured: configuredFiles.size,
   };
 }
 
@@ -173,7 +132,7 @@ function updateScriptVersion(version) {
  * 运行 sync 命令
  */
 async function run(options = {}) {
-  const { yes = false, checkOnly = false } = options;
+  const { yes = false, checkOnly = false, autoFix = false } = options;
 
   step("同步官方版本");
 
@@ -260,7 +219,20 @@ async function run(options = {}) {
 
   if (newFiles.length > 0) {
     warn(`请为 ${newFiles.length} 个新增文件添加汉化配置！`);
-    indent("提示: 运行 opencodenpm verify -d 查看详情");
+    indent("提示: 运行 opencodenpm fix 一键修复到语言包并应用编译", 2);
+    indent("提示: 运行 opencodenpm verify -d 查看详细信息", 2);
+    if (autoFix && !checkOnly) {
+      blank();
+      step("自动一键修复并编译");
+      const res = await runPipeline("repair", { skipUpdate: true });
+      if (!res.ok) return false;
+      printPipelineSummary("repair", res);
+      const i18n = res.ctx.i18n;
+      if (i18n) {
+        blank();
+        await i18n.showCoverageReportWithAI(res.ctx.newTranslations || null);
+      }
+    }
   }
 
   return true;

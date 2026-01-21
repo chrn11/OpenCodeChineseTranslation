@@ -1,5 +1,5 @@
 {
-  "file": "src/components/dialog-connect-provider.tsx",
+  "file": "src/cli/cmd/tui/component/dialog-provider.tsx",
   "description": "连接提供商对话框（新版）",
   "replacements": {
     "label: \"API key\"": "label: \"API 密钥 (API key)\"",

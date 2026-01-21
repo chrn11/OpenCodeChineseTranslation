@@ -4,7 +4,7 @@
  */
 
 const { getOpencodeDir } = require("../core/utils.js");
-const { cloneRepo, pullRepo } = require("../core/git.js");
+const { cloneRepo, pullRepo, getRepoVersion } = require("../core/git.js");
 const {
   step,
   success,
@@ -12,6 +12,8 @@ const {
   indent,
   warn,
   nestedStep,
+  nestedSuccess,
+  nestedContent,
 } = require("../core/colors.js");
 
 async function run(options = {}) {
@@ -19,6 +21,8 @@ async function run(options = {}) {
   const opencodeDir = getOpencodeDir();
 
   const outputStep = nested ? nestedStep : step;
+  const outputSuccess = nested ? nestedSuccess : success;
+  const outputContent = nested ? nestedContent : indent;
 
   outputStep("更新 OpenCode 源码");
 
@@ -32,7 +36,16 @@ async function run(options = {}) {
       const { remove } = require("../core/utils.js");
       remove(opencodeDir);
     } else {
-      const result = await pullRepo(opencodeDir, { silent: nested });
+      const result = await pullRepo(opencodeDir, { silent: nested, nested });
+      if (result && !nested) {
+        // 获取版本信息
+        const version = getRepoVersion(opencodeDir);
+        if (version) {
+          outputSuccess("源码已更新");
+          outputContent(`版本: ${version.version || "未知"}`);
+          outputContent(`Commit: ${version.commit || "未知"}`);
+        }
+      }
       return result;
     }
   }
@@ -41,8 +54,18 @@ async function run(options = {}) {
   const result = await cloneRepo(
     "https://github.com/anomalyco/opencode.git",
     opencodeDir,
-    { depth: 1, silent: nested },
+    { depth: 1, silent: nested, nested },
   );
+
+  if (result && !nested) {
+    // 获取版本信息
+    const version = getRepoVersion(opencodeDir);
+    if (version) {
+      outputSuccess("源码克隆完成");
+      outputContent(`版本: ${version.version || "未知"}`);
+      outputContent(`Commit: ${version.commit || "未知"}`);
+    }
+  }
 
   return result;
 }

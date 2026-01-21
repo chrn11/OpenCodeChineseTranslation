@@ -45,6 +45,18 @@ jobs:
           cd scripts
           npm install
 
+      - name: Verify release version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          CFG_VERSION="$(node -p 'require(\"./opencode-i18n/config.json\").version')"
+          if [ "v${CFG_VERSION}" != "${TAG}" ]; then
+            echo "Tag ${TAG} does not match opencode-i18n/config.json version v${CFG_VERSION}"
+            exit 1
+          fi
+          cd scripts
+          node bin/opencodenpm version --strict
+
       - name: Clone OpenCode source
         run: |
           git clone https://github.com/anomalyco/opencode.git opencode-zh-CN
@@ -59,7 +71,9 @@ jobs:
       - name: Build OpenCode
         run: |
           cd opencode-zh-CN/packages/opencode
-          bun run build
+          export OPENCODE_CHANNEL=latest
+          export OPENCODE_VERSION="${GITHUB_REF_NAME#v}"
+          bun run build --single
         shell: bash
 
       - name: Package artifact (Unix)
@@ -113,29 +127,73 @@ jobs:
           body: |
             ## OpenCode 中文汉化版 ${{ github.ref_name }}
 
-            ### 下载说明
+            > 基于 OpenCode 官方版本的完整中文本地化
 
-            | 平台 | 文件 |
-            |------|------|
-            | macOS (Apple Silicon) | `opencode-darwin-arm64.tar.gz` |
-            | macOS (Intel) | `opencode-darwin-x64.tar.gz` |
-            | Linux (x64) | `opencode-linux-x64.tar.gz` |
-            | Windows (x64) | `opencode-windows-x64.zip` |
+            ### 📦 下载说明
 
-            ### 安装方法
-
-            **macOS / Linux:**
-            ```bash
-            tar -xzf opencode-<platform>.tar.gz
-            sudo mv opencode-<platform>/bin/opencode /usr/local/bin/
-            ```
-
-            **Windows:**
-            解压后将 `bin\opencode.exe` 添加到系统 PATH
+            | 平台 | 文件 | 适用系统 |
+            |------|------|----------|
+            | macOS (Apple Silicon) | `opencode-darwin-arm64.tar.gz` | M1/M2/M3/M4 芯片 Mac |
+            | macOS (Intel) | `opencode-darwin-x64.tar.gz` | Intel 芯片 Mac |
+            | Linux (x64) | `opencode-linux-x64.tar.gz` | Ubuntu/Debian/CentOS 等 |
+            | Windows (x64) | `opencode-windows-x64.zip` | Windows 10/11 64位 |
 
             ---
 
-            详细更新日志请查看 [README](https://github.com/xiaolajiaoyyds/OpenCodeChineseTranslation#-更新日志)
+            ### 🍎 macOS 安装
+
+            ```bash
+            # 1. 解压（以 Apple Silicon 为例）
+            tar -xzf opencode-darwin-arm64.tar.gz
+
+            # 2. 安装到系统
+            sudo mv opencode-darwin-arm64/bin/opencode /usr/local/bin/
+
+            # 3. 验证安装
+            opencode --version
+            ```
+
+            > Intel Mac 请下载 `opencode-darwin-x64.tar.gz`
+
+            ---
+
+            ### 🐧 Linux 安装
+
+            ```bash
+            # 1. 解压
+            tar -xzf opencode-linux-x64.tar.gz
+
+            # 2. 安装到系统
+            sudo mv opencode-linux-x64/bin/opencode /usr/local/bin/
+
+            # 3. 验证安装
+            opencode --version
+            ```
+
+            ---
+
+            ### 🪟 Windows 安装
+
+            1. 下载 `opencode-windows-x64.zip`
+            2. 解压到任意目录（如 `C:\Program Files\OpenCode`）
+            3. 将 `bin` 目录添加到系统 PATH 环境变量
+            4. 打开新的命令提示符，运行 `opencode --version` 验证
+
+            ---
+
+            ### 🚀 使用方法
+
+            ```bash
+            # 在任意项目目录运行
+            opencode
+
+            # 或指定目录
+            opencode /path/to/project
+            ```
+
+            ---
+
+            📖 详细更新日志请查看 [README](https://github.com/xiaolajiaoyyds/OpenCodeChineseTranslation#-更新日志)
           files: |
             artifacts/**/*.tar.gz
             artifacts/**/*.zip

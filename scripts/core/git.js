@@ -2,9 +2,19 @@
  * Git 操作模块
  */
 
-const { exec } = require("./utils.js");
-const { success, error, warn, indent } = require("./colors.js");
+const { exec, execLive } = require("./utils.js");
+const {
+  success,
+  error,
+  warn,
+  indent,
+  nestedSuccess,
+  nestedContent,
+  createSpinner,
+} = require("./colors.js");
 const p = require("@clack/prompts");
+const path = require("path");
+const fs = require("fs");
 
 /**
  * 获取 Git 仓库信息
@@ -27,12 +37,39 @@ function getRepoInfo(repoPath) {
 }
 
 /**
+ * 获取仓库版本信息（从 package.json）
+ */
+function getRepoVersion(repoPath) {
+  try {
+    const pkgPath = path.join(repoPath, "packages", "opencode", "package.json");
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      const commit = exec("git rev-parse --short HEAD", {
+        cwd: repoPath,
+      }).trim();
+      return {
+        version: pkg.version,
+        commit: commit,
+      };
+    }
+  } catch (e) {
+    return null;
+  }
+  return null;
+}
+
+/**
  * 克隆仓库
  */
 async function cloneRepo(url, targetPath, options = {}) {
-  const { depth = 1, branch = null, silent = false } = options;
+  const { depth = 1, branch = null, silent = false, nested = false } = options;
 
-  const spinner = silent ? null : p.spinner();
+  const outputSuccess = nested ? nestedSuccess : success;
+  const spinner = silent
+    ? null
+    : nested
+      ? createSpinner("正在克隆仓库...")
+      : p.spinner();
 
   try {
     let cmd = `git clone ${url} ${targetPath}`;
@@ -41,17 +78,23 @@ async function cloneRepo(url, targetPath, options = {}) {
 
     if (!silent) spinner.start("正在克隆仓库...");
 
-    exec(cmd, { stdio: "pipe" });
+    await execLive(cmd, { silent: true, shell: true });
 
     if (!silent) {
       spinner.stop("仓库克隆完成");
-      indent(`仓库已克隆到: ${targetPath}`);
+      if (!nested) {
+        indent(`仓库已克隆到: ${targetPath}`);
+      }
     }
     return true;
   } catch (e) {
     if (!silent) {
-      spinner.stop("克隆失败", 1);
-      error(`克隆失败: ${e.message}`);
+      if (nested) {
+        spinner.stop("克隆失败");
+      } else {
+        spinner.stop("克隆失败", 1);
+        error(`克隆失败: ${e.message}`);
+      }
     }
     return false;
   }
@@ -61,15 +104,17 @@ async function cloneRepo(url, targetPath, options = {}) {
  * 拉取最新代码
  */
 async function pullRepo(repoPath, options = {}) {
-  const { branch = null, silent = false } = options;
+  const { branch = null, silent = false, nested = false } = options;
 
-  const spinner = silent ? null : p.spinner();
+  const spinner = silent
+    ? null
+    : nested
+      ? createSpinner("正在拉取最新代码...")
+      : p.spinner();
 
   try {
-    // 获取当前分支（如果未指定）
     const currentBranch = branch || getCurrentBranch(repoPath) || "main";
 
-    // 获取远程跟踪分支
     let remoteBranch;
     try {
       const upstream = exec(
@@ -81,24 +126,37 @@ async function pullRepo(repoPath, options = {}) {
       ).trim();
       remoteBranch = upstream;
     } catch {
-      // 如果没有上游分支，使用 origin/branch
       remoteBranch = `origin/${currentBranch}`;
     }
 
     if (!silent) spinner.start("正在拉取最新代码...");
 
-    // 获取远程的所有分支
-    exec("git fetch origin", { cwd: repoPath, stdio: "pipe" });
+    const remoteName = remoteBranch.includes("/")
+      ? remoteBranch.split("/")[0]
+      : "origin";
 
-    // 重置到远程分支
-    exec(`git reset --hard ${remoteBranch}`, { cwd: repoPath, stdio: "pipe" });
+    await execLive(`git fetch ${remoteName}`, {
+      cwd: repoPath,
+      silent: true,
+      shell: true,
+    });
+
+    await execLive(`git reset --hard ${remoteBranch}`, {
+      cwd: repoPath,
+      silent: true,
+      shell: true,
+    });
 
     if (!silent) spinner.stop("源码已更新");
     return true;
   } catch (e) {
     if (!silent) {
-      spinner.stop("拉取失败", 1);
-      error(`拉取失败: ${e.message}`);
+      if (nested) {
+        spinner.stop("拉取失败");
+      } else {
+        spinner.stop("拉取失败", 1);
+        error(`拉取失败: ${e.message}`);
+      }
     }
     return false;
   }
@@ -196,10 +254,11 @@ function hasChanges(repoPath) {
 }
 
 module.exports = {
-  getRepoInfo,
   cloneRepo,
   pullRepo,
   cleanRepo,
+  getRepoInfo,
+  getRepoVersion,
   getCurrentBranch,
   getLatestCommit,
   getCommitCount,

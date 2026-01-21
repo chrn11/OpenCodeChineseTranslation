@@ -296,18 +296,20 @@ async function run(options = {}) {
  */
 async function runQualityCheck(options = {}) {
   const { limit = 50, fix = false } = options;
-
-  const translator = new Translator();
-
+  const { runPipeline } = require("../core/pipeline.js");
   if (fix) {
-    // 使用 AI 自动修复
-    const result = await translator.checkQuality({ fix: true, aiCheck: true });
-    return result.success;
-  } else {
-    // 仅显示质量报告
-    const result = await translator.showQualityReport();
-    return result.success;
+    const res = await runPipeline("packQuality", {
+      fixPackQuality: true,
+      aiCheckPackQuality: true,
+      qualitySampleSize: limit,
+    });
+    const { printPipelineSummary } = require("../core/pipeline.js");
+    printPipelineSummary("packQuality", res);
+    return res.ok;
   }
+  const translator = new Translator();
+  const result = await translator.showQualityReport({ sampleSize: limit });
+  return result.success;
 }
 
 module.exports = { run, scanFile, getConfiguredTranslations, runQualityCheck };

@@ -1,5 +1,5 @@
 {
-  "file": "src/components/dialog-select-model.tsx",
+  "file": "src/cli/cmd/tui/component/dialog-model.tsx",
   "description": "选择模型对话框",
   "replacements": {
     "placeholder: \"Search models\"": "placeholder: \"搜索模型 (Search models)\"",

@@ -191,18 +191,41 @@ ${content}
   /**
    * 智能处理新文件：AI 检查 → 自动翻译或跳过
    */
-  async smartProcessNewFiles(newFiles) {
-    if (newFiles.length === 0) return;
+  async smartProcessNewFiles(newFiles, options = {}) {
+    const { silent = false, dryRun = false } = options;
+    if (newFiles.length === 0) {
+      return {
+        processed: 0,
+        translatedFiles: 0,
+        translatedEntries: 0,
+        skippedFiles: 0,
+        failedFiles: 0,
+        savedConfigs: [],
+        skipped: [],
+      };
+    }
 
-    info(`正在用 AI 分析 ${newFiles.length} 个新文件...`);
+    if (!silent) info(`正在用 AI 分析 ${newFiles.length} 个新文件...`);
+
+    const stats = {
+      processed: 0,
+      translatedFiles: 0,
+      translatedEntries: 0,
+      skippedFiles: 0,
+      failedFiles: 0,
+      savedConfigs: [],
+      skipped: [],
+    };
 
     for (const file of newFiles) {
       const fullPath = path.join(this.sourceBase, file);
-      indent(`检查: ${file}`, 2);
+      stats.processed++;
+      if (!silent) indent(`检查: ${file}`, 2);
 
       const result = await this.aiCheckFile(fullPath);
       if (!result) {
-        indent(`  ⚠ AI 分析失败，保留待处理`, 2);
+        stats.failedFiles++;
+        if (!silent) indent(`  ⚠ AI 分析失败，保留待处理`, 2);
         continue;
       }
 
@@ -222,19 +245,33 @@ ${content}
           replacements: replacements,
         };
 
-        fs.mkdirSync(path.dirname(configPath), { recursive: true });
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        stats.translatedFiles++;
+        stats.translatedEntries += result.translations.length;
+        stats.savedConfigs.push({ file, configPath, count: result.translations.length });
 
-        success(`  ✓ 已保存翻译: ${result.translations.length} 条`);
-        result.translations.forEach((t) =>
-          indent(`    "${t.original}" → "${t.translated}"`, 2),
-        );
+        if (!dryRun) {
+          fs.mkdirSync(path.dirname(configPath), { recursive: true });
+          fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        }
+
+        if (!silent) {
+          success(
+            dryRun
+              ? `  ✓ (dry-run) 将保存翻译: ${result.translations.length} 条`
+              : `  ✓ 已保存翻译: ${result.translations.length} 条`,
+          );
+          indent(`    配置: ${configPath}`, 2);
+        }
       } else {
         // 不需要翻译 → 加入跳过列表
-        this.addToSkipList(file, result.reason || "无需翻译的文本");
-        info(`  ○ 已跳过: ${result.reason}`);
+        stats.skippedFiles++;
+        stats.skipped.push({ file, reason: result.reason || "无需翻译的文本" });
+        if (!dryRun) this.addToSkipList(file, result.reason || "无需翻译的文本");
+        if (!silent) info(`  ○ 已跳过: ${result.reason}`);
       }
     }
+
+    return stats;
   }
 
   /**
@@ -492,10 +529,24 @@ ${content}
   validate() {
     const configs = this.loadConfig();
     const errors = [];
+    const canCheckTargets = fs.existsSync(this.sourceBase);
 
     for (const config of configs) {
       if (!config.file) {
         errors.push(`${config.category}/${config.fileName}: 缺少 file 字段`);
+        continue;
+      }
+
+      if (canCheckTargets) {
+        if (config.deprecated === true) {
+          continue;
+        }
+        const targetPath = path.join(this.sourceBase, config.file);
+        if (!fs.existsSync(targetPath)) {
+          errors.push(
+            `${config.category}/${config.fileName}: 目标文件不存在: ${config.file}`,
+          );
+        }
       }
     }
 

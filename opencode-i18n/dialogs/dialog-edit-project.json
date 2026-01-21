@@ -1,6 +1,7 @@
 {
   "file": "src/components/dialog-edit-project.tsx",
   "description": "编辑项目对话框",
+  "deprecated": true,
   "replacements": {
     "title=\"Edit project\"": "title=\"编辑项目 (Edit project)\"",
     "label=\"Name\"": "label=\"名称 (Name)\"",

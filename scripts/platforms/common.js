@@ -16,22 +16,22 @@ function detectPlatform() {
  * 获取平台特定的构建参数
  */
 function getBuildArgs() {
-  const { platform } = getPlatform();
+  const { platform, arch } = getPlatform();
 
   const platformMap = {
     win32: {
-      platform: 'windows-x64',
-      target: 'win32-x64',
+      platform: arch === "arm64" ? "windows-arm64" : "windows-x64",
+      target: arch === "arm64" ? "win32-arm64" : "win32-x64",
       ext: '.exe',
     },
     darwin: {
-      platform: 'darwin-arm64',
-      target: 'darwin-arm64',
+      platform: `darwin-${arch}`,
+      target: `darwin-${arch}`,
       ext: '',
     },
     linux: {
-      platform: 'linux-x64',
-      target: 'linux-x64',
+      platform: `linux-${arch}`,
+      target: `linux-${arch}`,
       ext: '',
     },
   };

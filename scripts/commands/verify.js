@@ -5,6 +5,8 @@
 
 const I18n = require("../core/i18n.js");
 const Translator = require("../core/translator.js");
+const { runPipeline } = require("../core/pipeline.js");
+const { printPipelineSummary } = require("../core/pipeline.js");
 const {
   step,
   success,
@@ -50,7 +52,13 @@ async function run(options = {}) {
 
   // 1. 验证配置完整性
   outputStep("验证配置文件");
-  const errors = i18n.validate();
+  const verifyRes = await runPipeline("verify", {
+    skipUpdate: true,
+    skipBuild: true,
+    skipDeploy: true,
+  });
+  printPipelineSummary("verify", verifyRes);
+  const errors = verifyRes.steps[0]?.details || [];
 
   if (errors.length > 0) {
     error("发现配置错误:");

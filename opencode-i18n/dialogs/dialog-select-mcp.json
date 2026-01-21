@@ -1,5 +1,5 @@
 {
-  "file": "src/components/dialog-select-mcp.tsx",
+  "file": "src/cli/cmd/tui/component/dialog-mcp.tsx",
   "description": "选择MCP对话框",
   "replacements": {
     "title=\"MCPs\"": "title=\"MCP 服务 (MCPs)\"",

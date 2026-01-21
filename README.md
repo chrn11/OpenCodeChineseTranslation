@@ -1,8 +1,8 @@
-# OpenCode 中文汉化版 v1.1.27-zh
+# OpenCode 中文汉化版 v1.1.28-zh
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![OpenCode](https://img.shields.io/badge/OpenCode-v1.1.27-brightgreen)](https://github.com/anomalyco/opencode)
-[![汉化版](https://img.shields.io/badge/汉化版-1.1.27--zh-orange)](https://github.com/xiaolajiaoyyds/OpenCodeChineseTranslation)
+[![OpenCode](https://img.shields.io/badge/OpenCode-v1.1.28-brightgreen)](https://github.com/anomalyco/opencode)
+[![汉化版](https://img.shields.io/badge/汉化版-1.1.28--zh-orange)](https://github.com/xiaolajiaoyyds/OpenCodeChineseTranslation)
 
 > **OpenCode** 是由 [Anomaly Company](https://anomaly.company/) 开发的开源 AI 编程代理。
 > 本项目提供完整的中文本地化，通过 AI 辅助翻译和质量检查实现高质量汉化。
@@ -43,7 +43,7 @@
 
 ---
 
-## ✨ v1.1.27-zh 新特性
+## ✨ v1.1.28-zh 新特性
 
 ### 🎨 TUI 视觉体验升级
 
@@ -239,7 +239,7 @@ OpenCodeChineseTranslation/
 
 ## 📋 更新日志
 
-### v1.1.27-zh (2025-01-21)
+### v1.1.28-zh (2026-01-21)
 
 **TUI 视觉体验全面升级**
 

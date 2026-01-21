@@ -1,6 +1,7 @@
 {
   "file": "src/components/dialog-select-directory.tsx",
   "description": "选择目录对话框",
+  "deprecated": true,
   "replacements": {
     "\"Open project\"": "\"打开项目 (Open project)\"",
     "placeholder: \"Search folders\"": "placeholder: \"搜索文件夹 (Search folders)\"",
