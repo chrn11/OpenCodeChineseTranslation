@@ -299,10 +299,6 @@ function printPipelineSummary(preset, result) {
   let deployInfo = null;
 
   for (const stepResult of result.steps) {
-    if (stepResult.name === "deployToLocal") {
-      deployToLocalInfo = stepResult;
-      continue;
-    }
     if (stepResult.name === "deploy") {
       deployInfo = stepResult;
       continue;
@@ -324,6 +320,16 @@ function printPipelineSummary(preset, result) {
       if (typeof d.files === "number" && typeof d.replacements === "number") {
         l3Info(`替换结果: ${d.files} 个文件, ${d.replacements} 处替换`);
       }
+    }
+
+    // 提取 build 步骤中的 deployToLocal 信息
+    if (stepResult.name === "build" && d && d.deployToLocal) {
+      deployToLocalInfo = {
+        name: "deployToLocal",
+        ok: true,
+        summary: "部署到本地",
+        details: d.deployToLocal,
+      };
     }
   }
 
@@ -634,19 +640,44 @@ function buildSteps(options = {}) {
       if (!ok) {
         return { ok: false, changed: false, summary: "编译失败" };
       }
+
+      let deployToLocalResult = null;
       if (buildDeployToLocal) {
-        await builder.deployToLocal({ silent: false, nested: true });
+        // 静默执行，稍后在总结中显示
+        const success = await builder.deployToLocal({ silent: true, nested: true });
+        if (success) {
+          const path = require("path");
+          const fs = require("fs");
+          const { getBinDir, getPlatform, formatSize } = require("./utils.js");
+          const binDir = getBinDir();
+          const { isWindows } = getPlatform();
+          const destName = isWindows ? "opencode.exe" : "opencode";
+          const destPath = path.join(binDir, destName);
+          try {
+            const stats = fs.statSync(destPath);
+            deployToLocalResult = {
+              target: destPath,
+              size: formatSize(stats.size),
+            };
+          } catch (e) {}
+        }
       }
+
       blank();
-      return { ok: true, changed: true, summary: "编译完成" };
+      return {
+        ok: true,
+        changed: true,
+        summary: "编译完成",
+        details: deployToLocalResult ? { deployToLocal: deployToLocalResult } : null
+      };
     },
     deploy: async () => {
       if (skipDeploy) return { ok: true, changed: false, summary: "跳过部署" };
       if (dryRun)
         return { ok: true, changed: false, summary: "dry-run 跳过部署" };
 
-      nestedStep("部署到系统 PATH");
-      const result = await deployCompiledBinary();
+      // 静默执行，稍后在总结中显示
+      const result = await deployCompiledBinary(true);
       blank();
       if (result) {
         return {
@@ -685,23 +716,49 @@ function buildSteps(options = {}) {
       if (skipBuild) return { ok: true, changed: false, summary: "跳过编译" };
       if (dryRun)
         return { ok: true, changed: false, summary: "dry-run 跳过编译" };
+
       const builder = new Builder();
       const ok = await builder.build({ silent: false, nested: false });
       if (!ok) {
         return { ok: false, changed: false, summary: "编译失败" };
       }
+
+      let deployToLocalResult = null;
       if (buildDeployToLocal) {
-        await builder.deployToLocal({ silent: false });
+        const success = await builder.deployToLocal({ silent: true });
+        if (success) {
+          const path = require("path");
+          const fs = require("fs");
+          const { getBinDir, getPlatform, formatSize } = require("./utils.js");
+          const binDir = getBinDir();
+          const { isWindows } = getPlatform();
+          const destName = isWindows ? "opencode.exe" : "opencode";
+          const destPath = path.join(binDir, destName);
+          try {
+            const stats = fs.statSync(destPath);
+            deployToLocalResult = {
+              target: destPath,
+              size: formatSize(stats.size),
+            };
+          } catch (e) {}
+        }
       }
+
       blank();
-      return { ok: true, changed: true, summary: "编译完成" };
+      return {
+        ok: true,
+        changed: true,
+        summary: "编译完成",
+        details: deployToLocalResult ? { deployToLocal: deployToLocalResult } : null
+      };
     },
     deploy: async () => {
       if (skipDeploy) return { ok: true, changed: false, summary: "跳过部署" };
       if (dryRun)
         return { ok: true, changed: false, summary: "dry-run 跳过部署" };
-      nestedStep("部署到系统 PATH");
-      const result = await deployCompiledBinary();
+
+      // 静默执行，稍后在总结中显示
+      const result = await deployCompiledBinary(true);
       blank();
       if (result) {
         return {

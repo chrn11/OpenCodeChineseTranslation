@@ -109,27 +109,27 @@ function getCompiledBinary() {
   return null;
 }
 
-async function deployBinary(binaryPath) {
+async function deployBinary(binaryPath, silent = false) {
   const { isWindows } = getPlatform();
   const existingPath = findExistingOpencode();
   let targetPath;
 
   if (existingPath) {
     targetPath = existingPath;
-    indent(`检测到已安装: ${existingPath}`);
+    if (!silent) indent(`检测到已安装: ${existingPath}`);
 
     const isRunning = checkOpencodeRunning();
     if (isRunning) {
-      warn("检测到 opencode 正在运行");
+      if (!silent) warn("检测到 opencode 正在运行");
       const confirmed = await confirmAction(
         "部署前需要终止运行中的进程，是否继续？",
       );
       if (!confirmed) {
-        indent("已取消部署");
+        if (!silent) indent("已取消部署");
         return null;
       }
       killRunningOpencode();
-      indent("已终止正在运行的 opencode 进程");
+      if (!silent) indent("已终止正在运行的 opencode 进程");
     }
   } else {
     targetPath = getDefaultInstallPath();
@@ -139,40 +139,40 @@ async function deployBinary(binaryPath) {
   try {
     fs.copyFileSync(binaryPath, targetPath);
     if (!isWindows) fs.chmodSync(targetPath, 0o755);
-    success(`已部署到: ${targetPath}`);
+    if (!silent) success(`已部署到: ${targetPath}`);
     return targetPath;
   } catch (e) {
     if (e.code === "EBUSY" || e.code === "ETXTBSY") {
-      warn("文件正在被使用，尝试强制终止 opencode 进程...");
+      if (!silent) warn("文件正在被使用，尝试强制终止 opencode 进程...");
       killRunningOpencode();
       try {
         fs.copyFileSync(binaryPath, targetPath);
         if (!isWindows) fs.chmodSync(targetPath, 0o755);
-        success(`已部署到: ${targetPath}`);
+        if (!silent) success(`已部署到: ${targetPath}`);
         return targetPath;
       } catch (e2) {
-        error(`部署失败: ${e2.message}`);
-        indent("请手动关闭所有 opencode 进程后重试");
+        if (!silent) error(`部署失败: ${e2.message}`);
+        if (!silent) indent("请手动关闭所有 opencode 进程后重试");
         return null;
       }
     }
     if (e.code === "EACCES" || e.code === "EPERM") {
       if (isWindows) {
-        error("部署失败: 权限不足");
-        indent("请尝试以管理员身份运行终端 (右键 -> 以管理员身份运行)", 2);
+        if (!silent) error("部署失败: 权限不足");
+        if (!silent) indent("请尝试以管理员身份运行终端 (右键 -> 以管理员身份运行)", 2);
         return null;
       }
-      indent(`需要管理员权限...`);
+      if (!silent) indent(`需要管理员权限...`);
       try {
         execSync(
           `sudo cp "${binaryPath}" "${targetPath}" && sudo chmod 755 "${targetPath}"`,
           { stdio: "inherit" },
         );
-        success(`已部署到: ${targetPath}`);
+        if (!silent) success(`已部署到: ${targetPath}`);
         return targetPath;
       } catch {
-        error("部署失败，请手动执行:");
-        indent(`  sudo cp "${binaryPath}" "${targetPath}"`);
+        if (!silent) error("部署失败，请手动执行:");
+        if (!silent) indent(`  sudo cp "${binaryPath}" "${targetPath}"`);
         return null;
       }
     }
@@ -186,11 +186,11 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-async function deployCompiledBinary() {
+async function deployCompiledBinary(silent = false) {
   const binary = getCompiledBinary();
   if (!binary) return null;
 
-  const target = await deployBinary(binary);
+  const target = await deployBinary(binary, silent);
   if (!target) return null;
 
   let size = null;
