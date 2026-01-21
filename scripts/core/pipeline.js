@@ -229,7 +229,8 @@ function printStepSummary(stepResult) {
     applyToSource: "应用语言包到源码",
     qualitySource: "替换后质量检查",
     build: "构建编译",
-    deploy: "部署到系统",
+    deployToLocal: "部署到本地",
+    deploy: "部署到系统 PATH",
   };
   const label = labels[stepResult.name] || stepResult.name;
   const icon = stepResult.ok ? `${c.green}✓${c.reset}` : `${c.red}✗${c.reset}`;
@@ -266,31 +267,21 @@ function printPipelineSummary(preset, result) {
     const d = stepResult.details || {};
 
     if (stepResult.name === "repairPack") {
-      if (d.newFiles) indent(`新增需汉化文件: ${d.newFiles.total} 个`, 4);
-      if (d.newFiles)
+      if (d.newFiles && typeof d.newFiles.total === "number") {
+        indent(`新增需汉化文件: ${d.newFiles.total} 个`, 4);
+      }
+      if (d.newFiles && typeof d.newFiles.translatedFiles === "number") {
         indent(
           `新增文件写入语言包: ${d.newFiles.translatedFiles} 个 / ${d.newFiles.translatedEntries} 条`,
           4,
         );
-      if (d.newFiles && d.newFiles.skippedFiles)
-        indent(`新增文件跳过: ${d.newFiles.skippedFiles} 个`, 4);
+      }
       if (d.scan) {
-        indent(
-          `补齐遗漏翻译: 成功 ${d.scan.successCount}，失败 ${d.scan.failCount}`,
-          4,
-        );
-        if (typeof d.scan.totalTexts === "number")
-          indent(`待翻译文本: ${d.scan.totalTexts} 处`, 4);
-        if (
-          typeof d.scan.totalCacheHits === "number" ||
-          typeof d.scan.totalAiTranslated === "number"
-        ) {
-          const parts = [];
-          if (d.scan.totalCacheHits)
-            parts.push(`缓存命中 ${d.scan.totalCacheHits}`);
-          if (d.scan.totalAiTranslated)
-            parts.push(`AI 翻译 ${d.scan.totalAiTranslated}`);
-          if (parts.length) indent(`翻译统计: ${parts.join("，")}`, 4);
+        if (typeof d.scan.successCount === "number") {
+          indent(
+            `补齐遗漏翻译: 成功 ${d.scan.successCount}，失败 ${d.scan.failCount}`,
+            4,
+          );
         }
       }
       if (d.quality) {
@@ -299,19 +290,6 @@ function printPipelineSummary(preset, result) {
           `语法问题: ${d.quality.syntaxErrors}，AI 语义问题: ${d.quality.aiIssues}`,
           4,
         );
-        if (d.quality.fixed > 0) indent(`已修复: ${d.quality.fixed} 处`, 4);
-      }
-      if (d.newFiles?.savedConfigs?.length) {
-        const show = d.newFiles.savedConfigs.slice(0, 3);
-        for (const item of show) {
-          indent(`+ ${item.file} (${item.count} 条)`, 4);
-        }
-        if (d.newFiles.savedConfigs.length > show.length) {
-          indent(
-            `... 还有 ${d.newFiles.savedConfigs.length - show.length} 个配置`,
-            4,
-          );
-        }
       }
     }
 
