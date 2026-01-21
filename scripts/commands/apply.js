@@ -4,7 +4,11 @@
  */
 
 const I18n = require("../core/i18n.js");
-const { runPipeline, confirmIfNeeded, printPipelineSummary } = require("../core/pipeline.js");
+const {
+  runPipeline,
+  confirmIfNeeded,
+  printPipelineSummary,
+} = require("../core/pipeline.js");
 const {
   step,
   success,
@@ -12,6 +16,7 @@ const {
   error,
   indent,
   blank,
+  kv,
   nestedStep,
   nestedContent,
   nestedSuccess,
