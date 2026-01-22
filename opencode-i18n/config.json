@@ -1,8 +1,8 @@
 {
-    "version": "1.1.30-zh",
-    "opencodeVersion": "1.1.30",
+    "version": "1.1.31-zh",
+    "opencodeVersion": "1.1.31",
     "description": "OpenCode 中文汉化配置文件（模块化结构）",
-    "lastUpdate": "2026-01-21",
+    "lastUpdate": "2026-01-22",
     "testPassRate": "100%",
     "supportedCommit": "65938baf00f58ef9d5e275b85cb4641d40f8ceae",
     "maintainer": {
