@@ -253,7 +253,108 @@ class Builder {
 
       return true;
     } catch (e) {
+      const output = e.output || e.stdout || "";
+      const errorOutput = typeof output === 'string' ? output : String(output);
+
+      // 检测是否是版本问题导致的编译错误
+      const isVersionIssue = this.detectVersionIssue(errorOutput);
+
+      if (isVersionIssue) {
+        outputError(`检测到汉化配置版本问题，尝试自动修复...`);
+        const fixed = await this.autoUpdateVersion(silent, nested);
+        if (fixed) {
+          if (!silent && !nested) {
+            outputSuccess(`已更新到最新版本，重新编译...`);
+          }
+          // 重新尝试编译
+          try {
+            await execLive("bun", args, {
+              cwd: this.buildDir,
+              env,
+              silent: true,
+              timeoutMs: 30 * 60 * 1000,
+            });
+            if (!silent && !nested) {
+              outputSuccess(`编译成功`);
+            }
+            return true;
+          } catch (retryErr) {
+            outputError(`自动修复后仍然编译失败`);
+          }
+        } else {
+          outputError(`自动修复失败，请手动更新`);
+        }
+      }
+
       outputError(`${e.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * 检测编译错误是否由版本问题导致
+   */
+  detectVersionIssue(errorOutput) {
+    const versionErrorPatterns = [
+      /Could not resolve.*重命名|Could not resolve.*\s+-\s+/, // 导入路径被翻译
+      /dialog-session\s+-\s+重命名/,
+      /Unexpected token.*[\u4e00-\u9fa5]/, // 包含中文的语法错误
+      /show\s+[\u4e00-\u9fa5]+.*\(\)/, // 函数名被翻译
+    ];
+
+    return versionErrorPatterns.some(pattern => pattern.test(errorOutput));
+  }
+
+  /**
+   * 自动更新汉化工具到最新版本
+   */
+  async autoUpdateVersion(silent = false, nested = false) {
+    const outputStep = nested ? nestedStep : step;
+    const outputSuccess = nested ? nestedSuccess : success;
+    const outputError = nested ? nestedError : error;
+    const { execSync } = require("child_process");
+
+    try {
+      if (!silent) {
+        outputStep("自动更新汉化工具");
+      }
+
+      // 获取项目根目录
+      const projectDir = require("../core/utils.js").getProjectDir();
+
+      // 恢复官方源码纯净状态
+      if (!silent) {
+        outputStep("恢复官方源码");
+      }
+      execSync("git checkout -- .", {
+        cwd: path.join(projectDir, "opencode-zh-CN/packages/opencode"),
+        stdio: silent ? "ignore" : "inherit",
+      });
+
+      // 拉取最新汉化配置
+      if (!silent) {
+        outputStep("更新汉化配置");
+      }
+      execSync("git pull origin main", {
+        cwd: projectDir,
+        stdio: silent ? "ignore" : "inherit",
+      });
+
+      // 重新应用汉化
+      if (!silent) {
+        outputStep("重新应用汉化");
+      }
+
+      const I18n = require("../core/i18n.js");
+      const i18n = new I18n();
+      await i18n.apply({ silent: true, skipNewFileCheck: true });
+
+      if (!silent) {
+        outputSuccess(`自动更新完成`);
+      }
+      return true;
+    } catch (e) {
+      outputError(`自动更新失败: ${e.message}`);
       return false;
     }
   }
