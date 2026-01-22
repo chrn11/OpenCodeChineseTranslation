@@ -4,8 +4,11 @@
 [![Version](https://img.shields.io/badge/version-v7.0-green.svg)](scripts/package.json)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](#)
 [![Release](https://img.shields.io/github/v/release/1186258278/OpenCodeChineseTranslation?label=最新汉化版)](https://github.com/1186258278/OpenCodeChineseTranslation/releases/latest)
+[![CI](https://github.com/1186258278/OpenCodeChineseTranslation/actions/workflows/release.yml/badge.svg)](https://github.com/1186258278/OpenCodeChineseTranslation/actions)
 
-> 🚀 **想要直接使用？** [点击下载最新汉化工具 (opencode-i18n-tool.zip)](https://github.com/1186258278/OpenCodeChineseTranslation/releases/latest)
+> 📥 **下载汉化版应用**: [前往 Releases 页面下载 Windows / macOS / Linux 客户端](https://github.com/1186258278/OpenCodeChineseTranslation/releases/latest)
+>
+> 🛠️ **开发者/脚本党**: 使用下方的一键安装脚本，快速配置汉化管理工具。
 
 [English Documentation](README_EN.md)
 
