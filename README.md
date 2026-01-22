@@ -100,6 +100,9 @@
 
 ### 方式一：下载预编译版本（推荐）
 
+## 如果你这台电脑什么都没有安装，环境也不会，那么我建议你直接下载安装把。一键启动。
+## 启动后，可以用内置免费的ai,然后让 ai 进行环境安装，还是做什么。
+
 前往 [Releases](https://github.com/xiaolajiaoyyds/OpenCodeChineseTranslation/releases) 下载对应平台的预编译版本：
 
 | 平台 | 文件 |
