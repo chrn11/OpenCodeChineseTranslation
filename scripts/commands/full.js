@@ -134,14 +134,26 @@ async function run(options = {}) {
     return false;
   }
 
-  const { printPipelineSummary } = require("../core/pipeline.js");
-  printPipelineSummary("oneclick", result);
-
+  // 先显示覆盖率报告（在执行总结之前）
   const i18n = result.ctx.i18n;
   if (i18n) {
     blank();
-    await i18n.showCoverageReportWithAI(result.ctx.newTranslations || null);
+    i18n.showCoverageReport();
   }
+
+  // 获取覆盖率数据给 AI 总结用
+  let uncoveredAnalysis = null;
+  if (i18n) {
+    const stats = i18n.getCoverageStats();
+    uncoveredAnalysis = stats?.uncoveredAnalysis || null;
+  }
+
+  // 显示执行总结（包含 AI 总结）
+  const { printPipelineSummary } = require("../core/pipeline.js");
+  await printPipelineSummary("oneclick", result, {
+    newTranslations: result.ctx.newTranslations || null,
+    uncoveredAnalysis,
+  });
 
   p.outro(color.green("✓ 汉化流程完成！"));
   return true;

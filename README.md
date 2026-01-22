@@ -1,8 +1,8 @@
-# OpenCode 中文汉化版 v1.1.30-zh
+# OpenCode 中文汉化版 v1.1.31-zh
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![OpenCode](https://img.shields.io/badge/OpenCode-v1.1.28-brightgreen)](https://github.com/anomalyco/opencode)
-[![汉化版](https://img.shields.io/badge/汉化版-1.1.30--zh-orange)](https://github.com/xiaolajiaoyyds/OpenCodeChineseTranslation)
+[![汉化版](https://img.shields.io/badge/汉化版-1.1.31--zh-orange)](https://github.com/xiaolajiaoyyds/OpenCodeChineseTranslation)
 
 > **OpenCode** 是由 [Anomaly Company](https://anomaly.company/) 开发的开源 AI 编程代理。
 > 本项目提供完整的中文本地化，通过 AI 辅助翻译和质量检查实现高质量汉化。
@@ -43,21 +43,21 @@
 
 ---
 
-## ✨ v1.1.30-zh 新特性
+## ✨ v1.1.31-zh 新特性
 
-### 🎨 三层格式系统
+### 🎨 界面优化
 
-全新的输出架构，所有界面元素统一为三层结构：
+- **AI 总结合并**：AI 总结不再单独开框，合并到执行总结框内最后，界面更简洁
+- **输出顺序优化**：覆盖率报告 → 执行总结（含 AI 总结）→ 完成提示，流程更自然
+- **模型信息对齐**：AI 总结中"指定模型"使用 L3 格式，与其他信息对齐
 
-- **L1 主内容层**：`│` + 2 空格 - 主要信息展示
-- **L2 子步骤层**：`│` + 2 空格 + `├─` - 步骤分解
-- **L3 详情层**：`│` + 2 空格 + `│` + 3 空格 + `●` - 详细信息
+### 🔧 技术改进
 
-### 🎯 TUI 视觉体验升级
+- printPipelineSummary 改为 async 函数，支持 AI 总结的异步调用
+- generateCoverageSummaryInline 新增内联版本，不创建独立框
+- 修复 AI 总结最后一行与结束符混在一起的问题
 
-- **部署信息优化**：部署步骤结果移至执行总结框内统一展示，流程更清晰
-- **AI 总结对齐**：修复 AI 总结首行缩进，多行文本完美对齐
-- **Knight Rider 流星动画**：AI 总结打字机效果带 14 格粉色渐变尾巴
+---
 - **智能换行**：只在标点符号后断行，避免中文断字
 - **用户体验**：AI 语义质量检查添加可选确认（Yes/No），节省 API 消耗
 

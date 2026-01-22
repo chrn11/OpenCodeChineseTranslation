@@ -242,7 +242,7 @@ async function run(options = {}) {
       step("自动一键修复并编译");
       const res = await runPipeline("repair", { skipUpdate: true });
       if (!res.ok) return false;
-      printPipelineSummary("repair", res);
+      await printPipelineSummary("repair", res);
       const i18n = res.ctx.i18n;
       if (i18n) {
         blank();

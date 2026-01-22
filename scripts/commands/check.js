@@ -305,7 +305,7 @@ async function runQualityCheck(options = {}) {
       qualitySampleSize: limit,
     });
     const { printPipelineSummary } = require("../core/pipeline.js");
-    printPipelineSummary("packQuality", res);
+    await printPipelineSummary("packQuality", res);
     return res.ok;
   }
   const translator = new Translator();

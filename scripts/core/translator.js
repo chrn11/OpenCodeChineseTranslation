@@ -1386,6 +1386,145 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
   }
 
   /**
+   * 生成覆盖率 AI 总结（内联版本，不创建新框）
+   * 用于在执行总结框内直接输出 AI 总结
+   */
+  async generateCoverageSummaryInline(context) {
+    const { uncoveredAnalysis, newTranslations } = context;
+    const { needTranslate = [], noNeedTranslate = [] } =
+      uncoveredAnalysis || {};
+
+    // 构建未覆盖文件的原因统计
+    const byReason = {};
+    for (const f of noNeedTranslate) {
+      if (!byReason[f.reason]) byReason[f.reason] = [];
+      byReason[f.reason].push(f.file.replace("src/cli/cmd/tui/", ""));
+    }
+
+    const reasonList = Object.entries(byReason)
+      .map(([reason, files]) => `• ${files.length} 个文件: ${reason}`)
+      .join("\n");
+
+    // 构建新翻译的内容摘要
+    let newTransInfo = "";
+    if (
+      newTranslations &&
+      newTranslations.files &&
+      newTranslations.files.length > 0
+    ) {
+      const newFiles = newTranslations.files.map((f) => {
+        const shortPath = f.file.replace("src/cli/cmd/tui/", "");
+        const samples = Object.values(f.translations)
+          .slice(0, 3)
+          .map((t) => {
+            const match = t.match(/["']([^"']+)["']/);
+            return match ? match[1] : t;
+          });
+        return `• ${shortPath}: ${samples.join("、")}`;
+      });
+
+      newTransInfo = `本次新增翻译了 ${newTranslations.files.length} 个文件:\n${newFiles.slice(0, 5).join("\n")}`;
+    }
+
+    // 构建结构化 prompt
+    let prompt = `你是一个汉化项目的助手。请用结构化的格式总结以下情况。
+
+要求：
+1. 使用简短的要点式输出，每个要点用 "▸" 开头
+2. 重点内容用【】括起来突出
+3. 语气轻松友好
+4. 总共不超过 3 个要点`;
+
+    if (newTransInfo) {
+      prompt += `\n\n翻译情况:\n${newTransInfo}\n\n请总结翻译了什么类型的内容（如界面按钮、提示信息等）。`;
+    }
+
+    if (noNeedTranslate.length > 0) {
+      prompt += `\n\n跳过的文件 (${noNeedTranslate.length} 个):\n${reasonList}\n\n请简要说明跳过原因。`;
+    }
+
+    if (needTranslate.length > 0) {
+      prompt += `\n\n待处理: 还有 ${needTranslate.length} 个文件需要翻译。`;
+    }
+
+    const c = colors;
+
+    // 手动初始化模型并输出"指定模型"（使用 l3Info 对齐）
+    if (!this.modelInitialized) {
+      this.modelInitialized = true;
+      const models = await this.fetchModels();
+      const validModels = models.filter(
+        (m) => m && !m.includes("thinking") && !m.includes("image"),
+      );
+      this.sortedModels = [];
+      for (const preferred of this.MODEL_PRIORITY) {
+        const found = validModels.find(
+          (m) => m.toLowerCase() === preferred.toLowerCase(),
+        );
+        if (found) this.sortedModels.push(found);
+      }
+      for (const preferred of this.MODEL_PRIORITY) {
+        const found = validModels.find(
+          (m) =>
+            m.toLowerCase().includes(preferred.toLowerCase()) &&
+            !this.sortedModels.includes(m),
+        );
+        if (found) this.sortedModels.push(found);
+      }
+      for (const m of validModels) {
+        if (!this.sortedModels.includes(m)) this.sortedModels.push(m);
+      }
+      if (this.model) {
+        l3Info(`指定模型: ${this.model}`);
+      } else if (this.sortedModels.length > 0) {
+        this.model = this.sortedModels[0];
+        l3Info(`指定模型: ${this.model}`);
+      } else {
+        this.model = "gpt-4";
+        l3Info(`使用默认模型: ${this.model}`);
+      }
+    }
+
+    const spinner = createSpinner("AI 分析中...");
+
+    try {
+      spinner.start();
+
+      let firstChar = true;
+
+      const termWidth = process.stdout.columns || 80;
+      const maxWidth = Math.max(40, Math.min(termWidth - 15, 90));
+
+      // 使用 L1 格式的前缀：│ + 2 空格
+      const linePrefix = `${c.gray}${S.BAR}${c.reset}  `;
+
+      const result = await this.streamAISummaryWrapped(prompt, maxWidth, () => {
+        if (firstChar) {
+          spinner.clear();
+          process.stdout.write(linePrefix);
+          // 补齐额外的空格，使第一行与后续换行行对齐
+          process.stdout.write(getIndent(INDENT.STREAM_BASE - INDENT.L1_CONTENT));
+          firstChar = false;
+        }
+      });
+
+      if (firstChar) {
+        spinner.clear();
+      }
+
+      if (result === null) {
+        l3Info("(未配置 AI，跳过总结)");
+      } else if (!result || result.trim() === "") {
+        l3Info("(AI 返回为空)");
+      }
+    } catch (err) {
+      spinner.fail("分析失败");
+      const errMsg = err.message || String(err);
+      l3Info(`(失败: ${errMsg.slice(0, 40)})`);
+    }
+  }
+
+  /**
    * 生成覆盖率 AI 总结
    */
   async generateCoverageSummary(context) {

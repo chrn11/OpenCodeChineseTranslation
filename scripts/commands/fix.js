@@ -38,7 +38,7 @@ async function run(options = {}) {
     return false;
   }
 
-  printPipelineSummary("repair", result);
+  await printPipelineSummary("repair", result);
   const i18n = result.ctx.i18n;
   if (i18n) {
     blank();

@@ -284,7 +284,7 @@ function printStepSummary(stepResult) {
   out(`${bar}  ${content}`.trimEnd());
 }
 
-function printPipelineSummary(preset, result) {
+async function printPipelineSummary(preset, result, options = {}) {
   const c = colors;
   blank();
   groupStart("执行总结");
@@ -358,7 +358,40 @@ function printPipelineSummary(preset, result) {
     }
   }
 
+  // AI 总结合并到执行总结框内最后（仅当有 AI 数据时）
+  const hasAIData = options.newTranslations ||
+    (options.uncoveredAnalysis &&
+     (options.uncoveredAnalysis.needTranslate?.length > 0 ||
+      options.uncoveredAnalysis.noNeedTranslate?.length > 0));
+
+  if (hasAIData) {
+    blank();
+    l1(`${c.cyan}AI 总结${c.reset}`);
+    blank();
+    await generateAISummaryInSummary(options);
+    blank();  // AI 总结后换行，避免与 └ 混在一起
+  }
+
   groupEnd();
+}
+
+/**
+ * 在执行总结框内生成 AI 总结（不创建新框）
+ */
+async function generateAISummaryInSummary(options) {
+  const Translator = require("./translator.js");
+  const translator = new Translator();
+
+  // 构建 AI 总结的上下文
+  const summaryContext = {
+    uncoveredAnalysis: options.uncoveredAnalysis || {
+      needTranslate: [],
+      noNeedTranslate: [],
+    },
+    newTranslations: options.newTranslations || null,
+  };
+
+  await translator.generateCoverageSummaryInline(summaryContext);
 }
 
 function buildSteps(options = {}) {

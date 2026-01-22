@@ -74,7 +74,7 @@ async function run(options = {}) {
     return false;
   }
 
-  printPipelineSummary("apply", res);
+  await printPipelineSummary("apply", res);
 
   if (!silent) {
     const i18n = res.ctx.i18n || new I18n();

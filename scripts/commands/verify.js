@@ -61,7 +61,7 @@ async function run(options = {}) {
     skipBuild: true,
     skipDeploy: true,
   });
-  printPipelineSummary("verify", verifyRes);
+  await printPipelineSummary("verify", verifyRes);
   const errors = verifyRes.steps[0]?.details || [];
 
   if (errors.length > 0) {

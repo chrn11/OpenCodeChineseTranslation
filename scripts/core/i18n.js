@@ -850,7 +850,8 @@ ${content}
   }
 
   /**
-   * 显示汉化覆盖率报告（带 AI 总结）
+   * 显示汉化覆盖率报告
+   * AI 总结已移至执行总结框内，不再单独显示
    * @param {Object} newTranslations - 本次新翻译的内容（可选）
    */
   async showCoverageReportWithAI(newTranslations = null) {
@@ -876,24 +877,7 @@ ${content}
       }
     }
 
-    // 调用 AI 生成总结
-    const Translator = require("./translator.js");
-    const translator = new Translator();
-
-    // 构建 AI 总结的上下文
-    const summaryContext = {
-      uncoveredAnalysis: stats?.uncoveredAnalysis || {
-        needTranslate: [],
-        noNeedTranslate: [],
-      },
-      newTranslations: newTranslations,
-    };
-
-    await translator.generateCoverageSummary(summaryContext);
-
-    const { flushStream } = require("./colors.js");
-    await flushStream();
-
+    // AI 总结已移至执行总结框内，在此返回统计数据供后续使用
     return stats;
   }
 }

@@ -12,7 +12,7 @@ async function run(options = {}) {
     skipDeploy: true,
     buildDeployToLocal: deploy,
   });
-  printPipelineSummary("build", res);
+  await printPipelineSummary("build", res);
   return res.ok;
 }
 
