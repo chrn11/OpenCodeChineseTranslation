@@ -94,9 +94,20 @@ try {
 # 4. 解压安装
 Write-Color "`n[4/5] 安装到 $installDir ..." "Yellow"
 
+# 如果当前在安装目录内，先切换出去，否则无法删除
+if ((Get-Location).Path.StartsWith($installDir)) {
+    Write-Color "检测到当前位于目标目录内，切换到临时目录..." "Gray"
+    Set-Location $env:TEMP
+}
+
 if (Test-Path $installDir) {
     Write-Color "清理旧版本..." "Gray"
-    Remove-Item -Path $installDir -Recurse -Force
+    try {
+        Remove-Item -Path $installDir -Recurse -Force -ErrorAction Stop
+    } catch {
+        Write-Color "清理失败: 目录正被占用。请关闭所有在该目录下的终端窗口或应用后重试。" "Red"
+        exit 1
+    }
 }
 
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
