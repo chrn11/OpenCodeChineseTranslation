@@ -25,6 +25,7 @@ const {
 } = require("./colors.js");
 
 const fullCmd = require("../commands/full.js");
+const updateCmd = require("../commands/update-tool.js");
 const fixCmd = require("../commands/fix.js");
 const aiCmd = require("../commands/ai.js");
 
@@ -228,6 +229,11 @@ const MENU_OPTIONS = [
     hint: "下载/更新 → 扫描 → 汉化 → 检查 → 应用 → 构建 → 部署",
   },
   {
+    value: "update",
+    label: label("🔄", "同步工具"),
+    hint: "更新汉化工具到最新版本并重新安装依赖",
+  },
+  {
     value: "fix",
     label: label("🩹", "一键修复"),
     hint: "扫描 → 汉化 → 检查 → 修复 → 应用 → 构建 → 部署",
@@ -242,6 +248,13 @@ const MENU_OPTIONS = [
 
 const NEXT_STEP_MAP = {
   full: {
+    recommended: "menu",
+    options: [
+      { value: "menu", label: label("📋", "返回主菜单") },
+      { value: "exit", label: label("👋", "退出程序") },
+    ],
+  },
+  update: {
     recommended: "menu",
     options: [
       { value: "menu", label: label("📋", "返回主菜单") },
@@ -264,6 +277,9 @@ async function runCommand(cmd) {
     switch (cmd) {
       case "full":
         await fullCmd.run({ auto: false });
+        break;
+      case "update":
+        await updateCmd.run();
         break;
       case "fix":
         await fixCmd.run({});
