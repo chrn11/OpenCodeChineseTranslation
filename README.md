@@ -1,8 +1,8 @@
-# OpenCode 中文汉化版 v1.1.31-zh-v0.1
+# OpenCode 中文汉化版 v1.1.31-zh-v0.2
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![OpenCode](https://img.shields.io/badge/OpenCode-v1.1.31-brightgreen)](https://github.com/anomalyco/opencode)
-[![汉化版](https://img.shields.io/badge/汉化版-1.1.31--zh-v0.1-orange)](https://github.com/xiaolajiaoyyds/OpenCodeChineseTranslation)
+[![汉化版](https://img.shields.io/badge/汉化版-1.1.31--zh-v0.2-orange)](https://github.com/xiaolajiaoyyds/OpenCodeChineseTranslation)
 
 > **OpenCode** 是由 [Anomaly Company](https://anomaly.company/) 开发的开源 AI 编程代理。
 > 本项目提供完整的中文本地化，通过 AI 辅助翻译和质量检查实现高质量汉化。
@@ -44,7 +44,7 @@
 
 ---
 
-## ✨ v1.1.31-zh-v0.1 新特性
+## ✨ v1.1.31-zh-v0.2 新特性
 
 ### 🔄 同步工具
 
@@ -258,6 +258,15 @@ OpenCodeChineseTranslation/
 ---
 
 ## 📋 更新日志
+
+### v1.1.31-zh-v0.2 (2026-01-22)
+
+**同步工具 + 自动修复**
+
+- 🔄 菜单新增"🔄 同步工具"选项，一键更新汉化工具到最新版本
+- 🩹 编译失败时自动检测汉化配置版本问题并尝试自动修复
+- 📝 添加常见问题解答文档，覆盖编译错误排查指南
+- 🎨 AI 总结合并到执行总结框内，界面更简洁
 
 ### v1.1.28-zh (2026-01-21)
 
