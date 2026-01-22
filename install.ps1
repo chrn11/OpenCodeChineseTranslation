@@ -121,7 +121,9 @@ Set-Location "$installDir\scripts"
 if ($runtime -eq "bun") {
     bun install --production
 } else {
-    npm install --production
+    # 使用淘宝镜像加速 npm 安装
+    Write-Color "正在使用 npm 镜像源安装依赖..." "Gray"
+    npm install --production --registry=https://registry.npmmirror.com
 }
 
 # 链接全局命令 (对于 Windows，我们需要创建一个 cmd wrapper)
