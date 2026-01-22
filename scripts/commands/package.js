@@ -561,6 +561,11 @@ async function packageAll(options = {}) {
     fs.writeFileSync(releaseNotesPath, releaseNotes, 'utf-8');
     success(`生成发布说明: RELEASE_NOTES.md`);
 
+    // 生成 Release Title
+    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '/');
+    const releaseTitle = `OpenCode 汉化版 v${version} (OpenCode v${opencodeInfo.version}) - ${dateStr}`;
+    fs.writeFileSync(path.join(versionDir, 'RELEASE_TITLE.txt'), releaseTitle, 'utf-8');
+
     // 生成 checksums.txt
     const checksums = generateChecksums(packages);
     const checksumsPath = path.join(versionDir, 'checksums.txt');

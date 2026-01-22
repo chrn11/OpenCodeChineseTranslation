@@ -15,6 +15,15 @@
 - **Release 日志增强** - 自动抓取 OpenCode 官方仓库最近 15 次提交记录，填充到 Release Notes 中
 - **定时巡检** - GitHub Actions 增加定时任务 (每天 UTC 0点)，自动检查更新并构建，失败发送邮件报警
 
+## [7.3.2] - 2026-01-23
+
+### 🚀 自动化与体验升级
+
+- **一键安装脚本** - 新增 `install.sh` (Linux/macOS) 和 `install.ps1` (Windows)，支持自动检测和安装 Node.js/Bun 环境
+- **Release 日志增强** - 自动抓取 OpenCode 官方仓库最近 15 次提交记录，填充到 Release Notes 中
+- **定时巡检** - GitHub Actions 增加定时任务，自动检查更新并构建
+- **文档优化** - README 新增下载徽章和一键安装命令
+
 ## [7.2.2] - 2026-01-22
 
 ### 📝 文档与发布优化

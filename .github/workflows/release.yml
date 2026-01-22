@@ -77,11 +77,20 @@ jobs:
             echo "Release v$VERSION" > release_notes.md
             echo "notes_file=release_notes.md" >> $GITHUB_OUTPUT
           fi
+          
+          # Find release title
+          TITLE_FILE="releases/v$VERSION/RELEASE_TITLE.txt"
+          if [ -f "$TITLE_FILE" ]; then
+            TITLE=$(cat "$TITLE_FILE")
+            echo "title=$TITLE" >> $GITHUB_OUTPUT
+          else
+            echo "title=OpenCode 中文汉化版 v$VERSION" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: OpenCode 中文汉化版 v${{ steps.release_info.outputs.version }}
+          name: ${{ steps.release_info.outputs.title }}
           files: releases/v${{ steps.release_info.outputs.version }}/*
           body_path: ${{ steps.release_info.outputs.notes_file }}
           draft: false
