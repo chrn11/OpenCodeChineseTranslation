@@ -201,7 +201,7 @@
                         <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">推荐</span>
                     </div>
                     <div class="p-5 relative">
-                        <code class="text-sm text-blue-200 font-mono break-all block pr-20">irm https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.ps1 -OutFile install.ps1; .\install.ps1</code>
+                        <code class="text-sm text-blue-200 font-mono break-all block pr-20">irm https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.ps1 -OutFile $env:TEMP\opencode-install.ps1; & $env:TEMP\opencode-install.ps1</code>
                         <button onclick="copyCmd(this, 'win')" class="absolute right-4 top-4 bg-slate-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-2">
                             <i class="fa-regular fa-copy"></i> 复制
                         </button>
@@ -337,7 +337,7 @@
         // Copy Command
         function copyCmd(btn, type) {
             const cmd = type === 'win' 
-                ? "irm https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.ps1 -OutFile install.ps1; .\\install.ps1"
+                ? "irm https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.ps1 -OutFile $env:TEMP\\opencode-install.ps1; & $env:TEMP\\opencode-install.ps1"
                 : "curl -fsSL https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.sh | bash";
             
             navigator.clipboard.writeText(cmd).then(() => {
