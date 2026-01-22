@@ -19,6 +19,7 @@ const { exec } = require('../core/utils.js');
 const { getOpencodeDir, getProjectDir, getPlatform } = require('../core/utils.js');
 const { step, success, error, indent, log, warn } = require('../core/colors.js');
 const Builder = require('../core/build.js');
+const { VERSION } = require('../core/version.js');
 
 /**
  * 获取 releases 目录
@@ -31,17 +32,7 @@ function getReleasesDir() {
  * 获取汉化脚本版本号
  */
 function getI18nVersion() {
-  try {
-    const projectDir = getProjectDir();
-    const packageJson = path.join(projectDir, 'scripts', 'package.json');
-    if (fs.existsSync(packageJson)) {
-      const pkg = JSON.parse(fs.readFileSync(packageJson, 'utf-8'));
-      return pkg.version || '0.0.0';
-    }
-  } catch {
-    // 忽略
-  }
-  return '0.0.0';
+  return VERSION;
 }
 
 /**
