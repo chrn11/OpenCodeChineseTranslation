@@ -89,7 +89,17 @@ else
         
         if command -v nvm >/dev/null 2>&1; then
             nvm install --lts
-            RUNTIME="node"
+            
+            # 再次验证 Node.js 是否可用
+            if node -v >/dev/null 2>&1; then
+                echo -e "${GREEN}✓ Node.js 安装成功 ($(node -v))${NC}"
+                RUNTIME="node"
+            else
+                echo -e "${RED}错误: Node.js 安装成功但无法运行。${NC}"
+                echo -e "${YELLOW}原因: 您的系统版本过旧（glibc/libstdc++ 版本不足），不支持现代 Node.js。${NC}"
+                echo -e "${YELLOW}解决方案: 建议使用较新的 Linux 发行版（如 Ubuntu 20.04+, CentOS 8+）。${NC}"
+                exit 1
+            fi
         else
             echo -e "${RED}错误: 无法自动安装运行时环境。${NC}"
             echo -e "${YELLOW}请您的系统版本较旧，请手动安装 Node.js (v18+) 后重试。${NC}"
