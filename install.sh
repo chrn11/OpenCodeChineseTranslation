@@ -1,99 +1,96 @@
 #!/bin/bash
-
-# OpenCode 汉化工具一键安装脚本 (Go CLI 版)
-# 无需 Node.js/Bun 依赖
-
 set -e
 
 # 颜色定义
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
-RED='\033[0;31m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
 echo -e "${CYAN}==============================================${NC}"
-echo -e "${CYAN}   OpenCode 汉化管理工具安装脚本 (v8.1)   ${NC}"
+echo -e "${CYAN}   OpenCode 汉化管理工具安装脚本 (v8.2)   ${NC}"
 echo -e "${CYAN}==============================================${NC}"
 
-# 1. 检测系统架构
+# 1. 检测架构
 echo -e "\n${YELLOW}[1/4] 检测系统架构...${NC}"
-
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+OS="$(uname -s)"
 ARCH="$(uname -m)"
 
-if [ "$ARCH" == "x86_64" ]; then
-    ARCH="amd64"
-elif [ "$ARCH" == "aarch64" ] || [ "$ARCH" == "arm64" ]; then
-    ARCH="arm64"
+case "$OS" in
+    Linux)     OS="linux" ;;
+    Darwin)    OS="darwin" ;;
+    *)         echo -e "${RED}不支持的系统: $OS${NC}"; exit 1 ;;
+esac
+
+case "$ARCH" in
+    x86_64)  ARCH="amd64" ;;
+    arm64)   ARCH="arm64" ;;
+    aarch64) ARCH="arm64" ;;
+    *)       echo -e "${RED}不支持的架构: $ARCH${NC}"; exit 1 ;;
+esac
+
+echo -e "${GREEN}系统: $OS $ARCH${NC}"
+
+# 2. 准备安装目录
+INSTALL_DIR="$HOME/.opencode-i18n"
+BIN_DIR="$INSTALL_DIR/bin"
+mkdir -p "$BIN_DIR"
+
+BINARY_NAME="opencode-cli-$OS-$ARCH"
+TARGET_PATH="$BIN_DIR/opencode-cli"
+
+# 3. 检查本地文件 (离线安装支持)
+LOCAL_FILE="./$BINARY_NAME"
+if [ -f "$LOCAL_FILE" ]; then
+    echo -e "\n${YELLOW}[2/4] 检测到本地安装包...${NC}"
+    echo -e "${GREEN}正在从本地安装: $LOCAL_FILE${NC}"
+    cp "$LOCAL_FILE" "$TARGET_PATH"
 else
-    echo -e "${RED}不支持的架构: $ARCH${NC}"
-    exit 1
-fi
+    # 4. 在线下载
+    echo -e "\n${YELLOW}[2/4] 获取最新版本信息...${NC}"
+    REPO="1186258278/OpenCodeChineseTranslation"
+    VERSION="v8.3.0" # 默认版本
 
-if [ "$OS" != "linux" ] && [ "$OS" != "darwin" ]; then
-    echo -e "${RED}不支持的操作系统: $OS${NC}"
-    exit 1
-fi
+    DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/$BINARY_NAME"
 
-echo -e "系统: $OS $ARCH"
+    echo -e "\n${YELLOW}[3/4] 下载管理工具...${NC}"
+    echo -e "${NC}地址: $DOWNLOAD_URL${NC}"
 
-# 2. 获取最新版本
-echo -e "\n${YELLOW}[2/4] 获取最新版本信息...${NC}"
-REPO="1186258278/OpenCodeChineseTranslation"
-TAG_NAME="v8.1.0" # 默认版本
-
-if command -v curl >/dev/null 2>&1; then
-    LATEST_JSON=$(curl -s --max-time 5 "https://api.github.com/repos/$REPO/releases/latest" || echo "")
-    if [ -n "$LATEST_JSON" ]; then
-        REMOTE_TAG=$(echo "$LATEST_JSON" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        if [ -n "$REMOTE_TAG" ]; then
-            TAG_NAME="$REMOTE_TAG"
-        fi
+    if command -v curl >/dev/null 2>&1; then
+        curl -L -o "$TARGET_PATH" "$DOWNLOAD_URL"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -O "$TARGET_PATH" "$DOWNLOAD_URL"
+    else
+        echo -e "${RED}错误: 未找到 curl 或 wget，无法下载。${NC}"
+        exit 1
     fi
 fi
 
-echo -e "最新版本: ${GREEN}${TAG_NAME}${NC}"
+chmod +x "$TARGET_PATH"
+echo -e "${GREEN}安装成功!${NC}"
 
-# 3. 下载
-echo -e "\n${YELLOW}[3/4] 下载管理工具...${NC}"
-
-INSTALL_DIR="$HOME/.opencode-i18n"
-BIN_DIR="$INSTALL_DIR/bin"
-EXE_PATH="$BIN_DIR/opencode-cli"
-FILE_NAME="opencode-cli-$OS-$ARCH"
-DOWNLOAD_URL="https://github.com/$REPO/releases/download/$TAG_NAME/$FILE_NAME"
-
-# Gitee 镜像 (可选)
-# DOWNLOAD_URL="https://ghproxy.com/$DOWNLOAD_URL"
-
-echo -e "地址: $DOWNLOAD_URL"
-
-mkdir -p "$BIN_DIR"
-
-if curl -L --progress-bar -o "$EXE_PATH" "$DOWNLOAD_URL"; then
-    chmod +x "$EXE_PATH"
-    echo -e "${GREEN}下载成功!${NC}"
-else
-    echo -e "${RED}下载失败! 请检查网络连接。${NC}"
-    exit 1
-fi
-
-# 4. 配置环境
+# 5. 配置环境
 echo -e "\n${YELLOW}[4/4] 配置环境变量...${NC}"
 
-SHELL_CONFIG=""
-case "$SHELL" in
-    */zsh) SHELL_CONFIG="$HOME/.zshrc" ;;
-    */bash) SHELL_CONFIG="$HOME/.bashrc" ;;
-    *) SHELL_CONFIG="$HOME/.profile" ;;
+SHELL_NAME=$(basename "$SHELL")
+RC_FILE=""
+
+case "$SHELL_NAME" in
+    bash) RC_FILE="$HOME/.bashrc" ;;
+    zsh)  RC_FILE="$HOME/.zshrc" ;;
+    fish) RC_FILE="$HOME/.config/fish/config.fish" ;;
+    *)    RC_FILE="$HOME/.profile" ;;
 esac
 
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    echo -e "\n# OpenCode CLI" >> "$SHELL_CONFIG"
-    echo -e "export PATH=\"\$PATH:$BIN_DIR\"" >> "$SHELL_CONFIG"
-    echo -e "${GREEN}已将 $BIN_DIR 添加到 $SHELL_CONFIG${NC}"
-    echo -e "${YELLOW}请执行 source $SHELL_CONFIG 或重启终端使配置生效${NC}"
+    if [ "$SHELL_NAME" = "fish" ]; then
+        echo "set -gx PATH \$PATH $BIN_DIR" >> "$RC_FILE"
+    else
+        echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$RC_FILE"
+    fi
+    echo -e "${GREEN}已将 $BIN_DIR 添加到 $RC_FILE${NC}"
+    echo -e "${YELLOW}请执行 source $RC_FILE 或重启终端使配置生效${NC}"
 else
     echo -e "${GREEN}环境变量已配置${NC}"
 fi
@@ -101,5 +98,5 @@ fi
 echo -e "\n${GREEN}==============================================${NC}"
 echo -e "${GREEN}   安装完成!   ${NC}"
 echo -e "${GREEN}==============================================${NC}"
-echo -e "\n请重启终端，然后运行以下命令启动:"
-echo -e "  ${CYAN}opencode-cli interactive${NC}"
+echo -e "\n${NC}请重启终端，然后运行以下命令启动:${NC}"
+echo -e "${CYAN}  opencode-cli interactive${NC}"

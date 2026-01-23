@@ -142,7 +142,7 @@
         <div class="max-w-5xl mx-auto text-center">
             <a href="https://github.com/1186258278/OpenCodeChineseTranslation/releases/latest" target="_blank" class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-medium mb-8 hover:bg-primary/20 transition cursor-pointer">
                 <span class="flex h-2 w-2 rounded-full bg-primary animate-pulse"></span>
-                <span id="latest-version">v8.2.0</span> 已发布 · 每日构建
+                <span id="latest-version">v8.3.0</span> 已发布 · 每日构建
                 <i class="fa-solid fa-chevron-right text-[10px] opacity-50"></i>
             </a>
             
@@ -171,7 +171,7 @@
                     </div>
                     <div>
                         <h3 class="text-xl font-bold text-white flex items-center gap-2">
-                            <span id="dash-version">v8.2.0</span>
+                            <span id="dash-version">v8.3.0</span>
                             <span class="text-xs font-normal text-gray-400 bg-white/10 px-2 py-0.5 rounded" id="dash-date">...</span>
                         </h3>
                     </div>
@@ -216,7 +216,7 @@
                                 </div>
                             </div>
                             <div class="p-4 relative group">
-                                <code id="cmd-win" class="text-xs md:text-sm text-blue-200 font-mono break-all block pr-16 leading-relaxed">irm https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/install.ps1 | iex</code>
+                                <code id="cmd-win" class="text-xs md:text-sm text-blue-200 font-mono break-all block pr-16 leading-relaxed">irm https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.ps1 | iex</code>
                                 <button onclick="copyText('cmd-win', this)" class="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition backdrop-blur-sm border border-white/5">
                                     <i class="fa-regular fa-copy"></i>
                                 </button>
@@ -235,7 +235,7 @@
                                 </div>
                             </div>
                             <div class="p-4 relative group">
-                                <code id="cmd-unix" class="text-xs md:text-sm text-yellow-200 font-mono break-all block pr-16 leading-relaxed">curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/install.sh | bash</code>
+                                <code id="cmd-unix" class="text-xs md:text-sm text-yellow-200 font-mono break-all block pr-16 leading-relaxed">curl -fsSL https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.sh | bash</code>
                                 <button onclick="copyText('cmd-unix', this)" class="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition backdrop-blur-sm border border-white/5">
                                     <i class="fa-regular fa-copy"></i>
                                 </button>
@@ -496,8 +496,8 @@
         // Command Templates
         const cmds = {
             github: {
-                win: `irm https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/install.ps1 | iex`,
-                unix: `curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/install.sh | bash`
+                win: `irm https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.ps1 | iex`,
+                unix: `curl -fsSL https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.sh | bash`
             },
             gitee: {
                 win: `irm https://gitee.com/QtCodeCreators/OpenCodeChineseTranslation/raw/main/install.ps1 | iex`,
@@ -691,15 +691,15 @@
 
         // 静态备用数据（API 限流时使用）
         const fallbackRelease = {
-            tag_name: 'v8.2.0',
+            tag_name: 'v8.3.0',
             published_at: '2026-01-23T22:30:00Z',
             assets: [
-                { name: 'opencode-zh-CN-v8.2.0-windows-x64.zip', browser_download_url: `https://github.com/${repo}/releases/download/v8.2.0/opencode-zh-CN-v8.2.0-windows-x64.zip`, size: 52428800 },
-                { name: 'opencode-zh-CN-v8.2.0-darwin-arm64.zip', browser_download_url: `https://github.com/${repo}/releases/download/v8.2.0/opencode-zh-CN-v8.2.0-darwin-arm64.zip`, size: 33554432 },
-                { name: 'opencode-zh-CN-v8.2.0-linux-x64.zip', browser_download_url: `https://github.com/${repo}/releases/download/v8.2.0/opencode-zh-CN-v8.2.0-linux-x64.zip`, size: 51380224 },
-                { name: 'opencode-cli-windows-amd64.exe', browser_download_url: `https://github.com/${repo}/releases/download/v8.2.0/opencode-cli-windows-amd64.exe`, size: 8200000 },
-                { name: 'opencode-cli-darwin-arm64', browser_download_url: `https://github.com/${repo}/releases/download/v8.2.0/opencode-cli-darwin-arm64`, size: 7500000 },
-                { name: 'opencode-cli-linux-amd64', browser_download_url: `https://github.com/${repo}/releases/download/v8.2.0/opencode-cli-linux-amd64`, size: 7900000 }
+                { name: 'opencode-zh-CN-v8.2.0-windows-x64.zip', browser_download_url: `https://github.com/${repo}/releases/download/v8.3.0/opencode-zh-CN-v8.2.0-windows-x64.zip`, size: 52428800 },
+                { name: 'opencode-zh-CN-v8.2.0-darwin-arm64.zip', browser_download_url: `https://github.com/${repo}/releases/download/v8.3.0/opencode-zh-CN-v8.2.0-darwin-arm64.zip`, size: 33554432 },
+                { name: 'opencode-zh-CN-v8.2.0-linux-x64.zip', browser_download_url: `https://github.com/${repo}/releases/download/v8.3.0/opencode-zh-CN-v8.2.0-linux-x64.zip`, size: 51380224 },
+                { name: 'opencode-cli-windows-amd64.exe', browser_download_url: `https://github.com/${repo}/releases/download/v8.3.0/opencode-cli-windows-amd64.exe`, size: 8200000 },
+                { name: 'opencode-cli-darwin-arm64', browser_download_url: `https://github.com/${repo}/releases/download/v8.3.0/opencode-cli-darwin-arm64`, size: 7500000 },
+                { name: 'opencode-cli-linux-amd64', browser_download_url: `https://github.com/${repo}/releases/download/v8.3.0/opencode-cli-linux-amd64`, size: 7900000 }
             ],
             body: '详见 [CHANGELOG.md](https://github.com/1186258278/OpenCodeChineseTranslation/blob/main/CHANGELOG.md)'
         };

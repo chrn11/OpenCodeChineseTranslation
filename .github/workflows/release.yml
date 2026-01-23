@@ -47,6 +47,7 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0  # 禁用 CGO 以实现静态链接，解决 GLIBC 兼容性问题
         run: |
           cd cli-go
           go build -ldflags="-s -w" -o ../dist/opencode-cli-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} .
@@ -189,28 +190,28 @@ jobs:
       - name: Generate Release Notes
         run: |
           VERSION=${{ env.TAG_NAME }}
-          cat > release_notes.md << 'EOF'
+          cat > release_notes.md << EOF
           ## OpenCode 中文汉化版 ${{ env.TAG_NAME }}
           
           ### 📦 下载说明
           
           | 平台 | 管理工具 (CLI) | 汉化版 OpenCode |
           |------|----------------|-----------------|
-          | Windows x64 | `opencode-cli-windows-amd64.exe` | `opencode-zh-CN-${VERSION}-windows-x64.zip` |
-          | macOS Apple Silicon | `opencode-cli-darwin-arm64` | `opencode-zh-CN-${VERSION}-darwin-arm64.zip` |
-          | Linux x64 | `opencode-cli-linux-amd64` | `opencode-zh-CN-${VERSION}-linux-x64.zip` |
+          | Windows x64 | \`opencode-cli-windows-amd64.exe\` | \`opencode-zh-CN-${VERSION}-windows-x64.zip\` |
+          | macOS Apple Silicon | \`opencode-cli-darwin-arm64\` | \`opencode-zh-CN-${VERSION}-darwin-arm64.zip\` |
+          | Linux x64 | \`opencode-cli-linux-amd64\` | \`opencode-zh-CN-${VERSION}-linux-x64.zip\` |
           
           ### 🚀 快速安装
           
           **Windows (PowerShell)**
-          ```powershell
-          powershell -c "irm https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/install.ps1 | iex"
-          ```
+          \`\`\`powershell
+          powershell -c "irm https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.ps1 | iex"
+          \`\`\`
           
           **Linux / macOS**
-          ```bash
-          curl -fsSL https://raw.githubusercontent.com/1186258278/OpenCodeChineseTranslation/main/install.sh | bash
-          ```
+          \`\`\`bash
+          curl -fsSL https://cdn.jsdelivr.net/gh/1186258278/OpenCodeChineseTranslation@main/install.sh | bash
+          \`\`\`
           
           ### 📝 更新日志
           

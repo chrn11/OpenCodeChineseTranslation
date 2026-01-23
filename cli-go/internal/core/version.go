@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	VERSION = "8.2.0"
+	VERSION = "8.3.0"
 	APP_NAME = "OpenCode 汉化管理工具"
 )
 
