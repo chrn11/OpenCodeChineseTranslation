@@ -7,6 +7,24 @@
 
 ---
 
+## [8.4.0] - 2026-01-24
+
+### 🤖 自动化构建增强
+
+- **Nightly Build 工作流** - 新增 `.github/workflows/nightly.yml`，实现自动跟进上游更新
+  - **每小时检测**: 每小时第 0 分钟自动检查 `anomalyco/opencode` 的 `dev` 分支
+  - **智能阈值**: 累计 ≥5 个新 commit 时才触发构建，避免频繁构建
+  - **增量检测**: 使用 `.nightly-state` 文件记录上次构建的 commit SHA
+  - **完整 Changelog**: Release Notes 自动包含上游 OpenCode 的更新日志
+  - **固定 Tag**: 发布到固定 `nightly` tag，每次覆盖更新，下载链接始终指向最新版
+  - **手动触发**: 支持 `force_build` 强制构建，支持自定义 `min_commits` 阈值
+
+- **文档更新**
+  - `AI_MAINTENANCE.md` - 新增"自动化构建 (CI/CD)"章节，详细说明 Nightly 与 Release 工作流
+  - `CONTRIBUTING.md` - 新增 CI/CD 工作流说明，包含触发方式和对比表
+
+---
+
 ## [8.3.0] - 2026-01-23
 
 ### 🚀 架构升级与体验优化

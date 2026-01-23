@@ -303,6 +303,106 @@ opencodenpm launch
 
 ---
 
+## 🤖 自动化构建 (CI/CD)
+
+本项目使用 GitHub Actions 实现自动化构建和发布。
+
+### 工作流概览
+
+| 工作流 | 文件 | 触发条件 | 说明 |
+|--------|------|----------|------|
+| **Release** | `release.yml` | Tag 推送 / 手动触发 | 正式版发布，经过测试的稳定版本 |
+| **Nightly** | `nightly.yml` | 每日定时 / 手动触发 | 每日构建，跟进上游最新代码 |
+
+### Nightly Build (自动跟进构建)
+
+Nightly Build 会**每小时**自动检查上游仓库更新，当累计有 **≥5 个新 commit** 时自动触发构建。
+
+**工作原理：**
+
+1. **检查上游更新**（每小时第 0 分钟执行）
+   - 获取 `anomalyco/opencode` 的 `dev` 分支最新 commit
+   - 与 `.nightly-state` 文件中记录的上次构建 commit 对比
+   - 计算新增 commit 数量
+
+2. **触发条件**
+   - 累计新 commit 数量 ≥ 5 时触发构建
+   - 或手动触发时指定 `force_build=true`
+   - 首次构建（无 `.nightly-state` 文件）时直接触发
+
+3. **构建流程**
+   - 编译 Go CLI 工具（三平台）
+   - 克隆上游源码并应用汉化
+   - 编译 OpenCode（三平台）
+   - 生成包含上游更新日志的 Release Notes
+   - 打包并发布到 `nightly` tag
+
+4. **版本号策略**
+   - 文件名格式: `opencode-zh-CN-nightly-{platform}.zip`
+   - 使用固定的 `nightly` tag，每次构建覆盖更新
+   - 下载链接始终指向最新构建
+   - 标记为 `prerelease`，与正式版区分
+
+**Release Notes 内容：**
+- 构建信息（上游分支、commit SHA、新增 commit 数量、构建时间）
+- 下载链接表格
+- **OpenCode 官方更新日志**（自动抓取上游 git log）
+- 自动更新机制说明
+
+**手动触发：**
+
+```bash
+# 通过 GitHub CLI 触发 Nightly 构建
+gh workflow run nightly.yml
+
+# 强制构建（跳过 commit 数量检测）
+gh workflow run nightly.yml -f force_build=true
+
+# 自定义阈值（例如累计 3 个 commit 就触发）
+gh workflow run nightly.yml -f min_commits=3
+```
+
+**状态文件：**
+
+`.nightly-state` 文件记录上次构建的上游 commit SHA，用于增量检测：
+
+```
+a1b2c3d4e5f6...  # 上次构建的 commit SHA
+```
+
+每次成功构建后，Actions 会自动更新此文件并提交到仓库。
+
+### Release (正式发布)
+
+正式版发布流程请参阅下方"发布流程"章节。
+
+**触发方式：**
+
+```bash
+# 方式一：通过 release.ps1 脚本（推荐）
+.\release.ps1 -Version 8.4.0 -Message "新功能说明"
+
+# 方式二：手动触发 Actions
+gh workflow run release.yml -f tag_name=v8.4.0
+
+# 方式三：推送 Tag
+git tag v8.4.0
+git push origin v8.4.0
+```
+
+### Nightly vs Release 对比
+
+| 特性 | Nightly | Release |
+|------|---------|---------|
+| 触发频率 | 每日自动 | 手动触发 |
+| 版本号 | `nightly-YYYYMMDD` | `v8.x.x` |
+| 稳定性 | 可能不稳定 | 经过测试 |
+| 推荐用户 | 开发者/测试者 | 普通用户 |
+| Tag 类型 | 滚动覆盖 | 永久保留 |
+| prerelease | ✅ 是 | ❌ 否 |
+
+---
+
 ## 📦 发布流程
 
 ### 1. 更新版本信息
