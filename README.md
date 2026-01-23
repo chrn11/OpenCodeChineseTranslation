@@ -1,4 +1,4 @@
-# OpenCode 中文汉化版 v1.1.31-zh-v0.2
+# OpenCode 中文汉化版 v1.1.34-zh-v0.3
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![OpenCode](https://img.shields.io/badge/OpenCode-v1.1.31-brightgreen)](https://github.com/anomalyco/opencode)
@@ -44,7 +44,7 @@
 
 ---
 
-## ✨ v1.1.31-zh-v0.2 新特性
+## ✨ v1.1.34-zh-v0.3 新特性
 
 ### 🔄 同步工具
 
@@ -259,7 +259,7 @@ OpenCodeChineseTranslation/
 
 ## 📋 更新日志
 
-### v1.1.31-zh-v0.2 (2026-01-22)
+### v1.1.34-zh-v0.3 (2026-01-22)
 
 **同步工具 + 自动修复**
 
