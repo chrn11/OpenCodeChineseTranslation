@@ -63,7 +63,15 @@ jobs:
       - name: Get Release Info
         id: release_info
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Triggered by tag: v$VERSION"
+          else
+            echo "Triggered manually or by push to branch. Reading version from package.json..."
+            VERSION=$(node -p "require('./scripts/package.json').version")
+            echo "Version from package.json: $VERSION"
+          fi
+          
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           
           # Find release notes
@@ -90,6 +98,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: v${{ steps.release_info.outputs.version }}
           name: ${{ steps.release_info.outputs.title }}
           files: releases/v${{ steps.release_info.outputs.version }}/*
           body_path: ${{ steps.release_info.outputs.notes_file }}
