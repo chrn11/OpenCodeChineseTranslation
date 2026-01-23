@@ -676,38 +676,80 @@
             navigator.clipboard.writeText(text);
         }
 
+        // 静态备用数据（API 限流时使用）
+        const fallbackRelease = {
+            tag_name: 'v8.1.0',
+            published_at: '2026-01-23T22:00:00Z',
+            assets: [
+                { name: 'opencode-zh-CN-v8.1.0-windows-x64.zip', browser_download_url: `https://github.com/${repo}/releases/download/v8.1.0/opencode-zh-CN-v8.1.0-windows-x64.zip`, size: 52428800 },
+                { name: 'opencode-zh-CN-v8.1.0-darwin-arm64.zip', browser_download_url: `https://github.com/${repo}/releases/download/v8.1.0/opencode-zh-CN-v8.1.0-darwin-arm64.zip`, size: 33554432 },
+                { name: 'opencode-zh-CN-v8.1.0-linux-x64.zip', browser_download_url: `https://github.com/${repo}/releases/download/v8.1.0/opencode-zh-CN-v8.1.0-linux-x64.zip`, size: 51380224 },
+                { name: 'opencode-cli-windows-amd64.exe', browser_download_url: `https://github.com/${repo}/releases/download/v8.1.0/opencode-cli-windows-amd64.exe`, size: 8200000 },
+                { name: 'opencode-cli-darwin-arm64', browser_download_url: `https://github.com/${repo}/releases/download/v8.1.0/opencode-cli-darwin-arm64`, size: 7500000 },
+                { name: 'opencode-cli-linux-amd64', browser_download_url: `https://github.com/${repo}/releases/download/v8.1.0/opencode-cli-linux-amd64`, size: 7900000 }
+            ],
+            body: '详见 [CHANGELOG.md](https://github.com/1186258278/OpenCodeChineseTranslation/blob/main/CHANGELOG.md)'
+        };
+
+        // 使用 Release 数据更新页面
+        function applyReleaseData(data, isFallback = false) {
+            releaseData = data;
+            
+            // Update Hero Badge
+            if (data.tag_name) {
+                document.getElementById('latest-version').textContent = data.tag_name;
+                document.getElementById('dash-version').textContent = data.tag_name;
+            }
+
+            // Update Date
+            if (data.published_at) {
+                const date = new Date(data.published_at);
+                const timeStr = date.toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                document.getElementById('dash-date').textContent = isFallback 
+                    ? `${timeStr} (缓存)` 
+                    : `${timeStr} 构建`;
+            }
+
+            // Update Release Notes (using Marked.js)
+            if (data.body) {
+                const html = marked.parse(data.body);
+                document.getElementById('notes-content').innerHTML = html;
+            }
+
+            // Pre-render assets so they are ready when tab is switched
+            renderAssets();
+        }
+
         // Init Data
         (async () => {
             try {
                 const resp = await fetch(`https://api.github.com/repos/${repo}/releases/latest`);
-                releaseData = await resp.json();
                 
-                // Update Hero Badge
-                if (releaseData.tag_name) {
-                    document.getElementById('latest-version').textContent = releaseData.tag_name;
-                    document.getElementById('dash-version').textContent = releaseData.tag_name;
+                // 检查 API 限流
+                if (resp.status === 403) {
+                    console.warn('GitHub API rate limited, using fallback data');
+                    applyReleaseData(fallbackRelease, true);
+                    return;
                 }
-
-                // Update Date
-                if (releaseData.published_at) {
-                    const date = new Date(releaseData.published_at);
-                    const timeStr = date.toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    document.getElementById('dash-date').textContent = `${timeStr} 构建`;
+                
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                
+                const data = await resp.json();
+                
+                // 检查是否返回了错误消息
+                if (data.message && data.message.includes('rate limit')) {
+                    console.warn('GitHub API rate limited, using fallback data');
+                    applyReleaseData(fallbackRelease, true);
+                    return;
                 }
-
-                // Update Release Notes (using Marked.js)
-                if (releaseData.body) {
-                    const html = marked.parse(releaseData.body);
-                    document.getElementById('notes-content').innerHTML = html;
-                }
-
-                // Pre-render assets so they are ready when tab is switched
-                renderAssets();
+                
+                applyReleaseData(data);
 
             } catch (e) {
                 console.error('Failed to fetch release data:', e);
-                // Show error state in offline tab
-                document.getElementById('loading-assets').innerHTML = `<p class="text-red-400">获取版本信息失败，请刷新重试</p>`;
+                // 使用备用数据
+                console.log('Using fallback release data');
+                applyReleaseData(fallbackRelease, true);
             }
         })();
     </script>
