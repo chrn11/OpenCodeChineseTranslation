@@ -8,6 +8,8 @@
 
 > 🚀 **OpenCode 汉化发行版** | ⚡️ **每小时自动同步官方更新** | 全自动构建三端安装包 (Win/Mac/Linux)
 > 
+> 🔥 **每日构建 (Nightly)**：[点击下载最新开发版](https://github.com/1186258278/OpenCodeChineseTranslation/releases/tag/nightly) (每小时更新 · 推荐开发者)
+> 
 > 🎉 **访问官方网站**：[https://1186258278.github.io/OpenCodeChineseTranslation/](https://1186258278.github.io/OpenCodeChineseTranslation/)
 
 ---
