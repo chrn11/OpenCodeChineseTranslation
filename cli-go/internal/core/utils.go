@@ -13,10 +13,11 @@ import (
 )
 
 // GetProjectDir 获取项目根目录
+// 通过查找 cli-go 目录或 opencode-zh-CN 目录来定位
 func GetProjectDir() (string, error) {
 	// 1. 尝试环境变量 OPENCODE_PROJECT_DIR
 	if envDir := os.Getenv("OPENCODE_PROJECT_DIR"); envDir != "" {
-		if _, err := os.Stat(filepath.Join(envDir, "opencode-i18n")); err == nil {
+		if isProjectRoot(envDir) {
 			return envDir, nil
 		}
 	}
@@ -24,16 +25,8 @@ func GetProjectDir() (string, error) {
 	// 2. 尝试从当前工作目录向上查找
 	wd, err := os.Getwd()
 	if err == nil {
-		currentDir := wd
-		for {
-			if _, err := os.Stat(filepath.Join(currentDir, "opencode-i18n")); err == nil {
-				return currentDir, nil
-			}
-			parentDir := filepath.Dir(currentDir)
-			if parentDir == currentDir {
-				break
-			}
-			currentDir = parentDir
+		if found := findProjectRoot(wd); found != "" {
+			return found, nil
 		}
 	}
 
@@ -41,31 +34,58 @@ func GetProjectDir() (string, error) {
 	exePath, err := os.Executable()
 	if err == nil {
 		exeDir := filepath.Dir(exePath)
-		currentDir := exeDir
-		for {
-			if _, err := os.Stat(filepath.Join(currentDir, "opencode-i18n")); err == nil {
-				return currentDir, nil
-			}
-			parentDir := filepath.Dir(currentDir)
-			if parentDir == currentDir {
-				break
-			}
-			currentDir = parentDir
+		if found := findProjectRoot(exeDir); found != "" {
+			return found, nil
 		}
 	}
 
-	// 4. 如果是开发环境（如 go run），尝试特定路径
-	// 假设我们在 cli-go 目录下运行
+	// 4. 如果当前在 cli-go 目录下，父目录就是项目根目录
 	if wd, err := os.Getwd(); err == nil {
 		if strings.HasSuffix(wd, "cli-go") {
 			parent := filepath.Dir(wd)
-			if _, err := os.Stat(filepath.Join(parent, "opencode-i18n")); err == nil {
-				return parent, nil
-			}
+			return parent, nil
 		}
 	}
 
-	return "", fmt.Errorf("project root not found (missing opencode-i18n directory)")
+	// 5. 返回当前工作目录作为默认值（CI 环境中通常就是项目根目录）
+	if wd, err := os.Getwd(); err == nil {
+		return wd, nil
+	}
+
+	return "", fmt.Errorf("project root not found")
+}
+
+// isProjectRoot 检查目录是否为项目根目录
+func isProjectRoot(dir string) bool {
+	// 检查是否存在 cli-go 目录（开发环境）
+	if _, err := os.Stat(filepath.Join(dir, "cli-go")); err == nil {
+		return true
+	}
+	// 检查是否存在 opencode-zh-CN 目录（CI 环境）
+	if _, err := os.Stat(filepath.Join(dir, "opencode-zh-CN")); err == nil {
+		return true
+	}
+	// 检查是否存在 README.md（作为备用标识）
+	if _, err := os.Stat(filepath.Join(dir, "README.md")); err == nil {
+		return true
+	}
+	return false
+}
+
+// findProjectRoot 从指定目录向上查找项目根目录
+func findProjectRoot(startDir string) string {
+	currentDir := startDir
+	for {
+		if isProjectRoot(currentDir) {
+			return currentDir
+		}
+		parentDir := filepath.Dir(currentDir)
+		if parentDir == currentDir {
+			break
+		}
+		currentDir = parentDir
+	}
+	return ""
 }
 
 // GetOpencodeDir 获取 OpenCode 源码目录
@@ -77,13 +97,10 @@ func GetOpencodeDir() (string, error) {
 	return filepath.Join(projectDir, "opencode-zh-CN"), nil
 }
 
-// GetI18nDir 获取汉化配置目录
+// GetI18nDir 获取汉化配置目录（已弃用，汉化配置现在内嵌在二进制文件中）
+// 保留此函数是为了向后兼容，返回空字符串表示应使用内嵌资源
 func GetI18nDir() (string, error) {
-	projectDir, err := GetProjectDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(projectDir, "opencode-i18n"), nil
+	return "", nil
 }
 
 // GetBinDir 获取输出目录
