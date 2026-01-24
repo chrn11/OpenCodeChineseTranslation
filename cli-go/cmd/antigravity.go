@@ -31,9 +31,10 @@ func init() {
 
 // OpencodeConfig OpenCode 配置结构
 type OpencodeConfig struct {
-	Schema   string                 `json:"$schema,omitempty"`
-	Provider map[string]interface{} `json:"provider,omitempty"`
-	Model    string                 `json:"model,omitempty"`
+	Schema     string                            `json:"$schema,omitempty"`
+	Provider   map[string]interface{}            `json:"provider,omitempty"`
+	Model      string                            `json:"model,omitempty"`
+	McpServers map[string]map[string]interface{} `json:"mcpServers,omitempty"`
 }
 
 func runAntigravity() {
@@ -128,31 +129,72 @@ func runAntigravity() {
 		config.Provider = make(map[string]interface{})
 	}
 
-	providerOptions := map[string]interface{}{
-		"baseURL": fmt.Sprintf("%s/v1", endpoint),
+	// 配置 Antigravity Tools (Gemini)
+	// 使用 v1beta 接口
+	geminiBaseURL := fmt.Sprintf("%s/v1beta", endpoint)
+
+	geminiOptions := map[string]interface{}{
+		"baseURL": geminiBaseURL,
+		"apiKey":  "1", // 本地网关通常不需要真实 Key，但 SDK 可能校验非空
 	}
 	if apiKey != "" {
-		providerOptions["apiKey"] = apiKey
+		geminiOptions["apiKey"] = apiKey
 	}
 
-	config.Provider["antigravity"] = map[string]interface{}{
-		"npm":     "@ai-sdk/openai-compatible",
-		"name":    "Antigravity Tools",
-		"options": providerOptions,
+	config.Provider["AntigravityToolsGemini"] = map[string]interface{}{
+		"npm":     "@ai-sdk/google",
+		"name":    "Antigravity (Gemini)",
+		"options": geminiOptions,
 		"models": map[string]interface{}{
-			"antigravity/claude-sonnet-4-5": map[string]interface{}{
-				"name":  "Claude 4.5 Sonnet",
-				"limit": map[string]int{"context": 200000, "output": 8192},
+			"gemini-3-pro-high": map[string]interface{}{
+				"id":   "gemini-3-pro-high",
+				"name": "Gemini 3 Pro High",
+				"limit": map[string]int{
+					"context": 1000000,
+					"output":  20000,
+				},
 			},
-			"antigravity/gemini-3-flash": map[string]interface{}{
-				"name":  "Gemini 3 Flash",
-				"limit": map[string]int{"context": 1000000, "output": 8192},
+			"gemini-3-pro-low": map[string]interface{}{
+				"id":   "gemini-3-pro-low",
+				"name": "Gemini 3 Pro Low",
+				"limit": map[string]int{
+					"context": 1000000,
+					"output":  20000,
+				},
 			},
 		},
 	}
 
-	if config.Model == "" {
-		config.Model = "antigravity/claude-sonnet-4-5"
+	// 配置 Antigravity Tools (Claude)
+	// 假设 Antigravity 提供了标准 Anthropic 兼容接口
+	claudeOptions := map[string]interface{}{
+		"baseURL": fmt.Sprintf("%s/v1", endpoint), // 通常映射到 /v1
+		"apiKey":  "1",
+	}
+	if apiKey != "" {
+		claudeOptions["apiKey"] = apiKey
+	}
+
+	config.Provider["AntigravityToolsClaude"] = map[string]interface{}{
+		"npm":     "@ai-sdk/anthropic",
+		"name":    "Antigravity (Claude)",
+		"options": claudeOptions,
+		"models": map[string]interface{}{
+			"claude-opus-4-5-thinking": map[string]interface{}{
+				"id":   "claude-opus-4-5-thinking",
+				"name": "Claude Opus 4.5 (Thinking)",
+				"limit": map[string]int{
+					"context": 200000,
+					"output":  20000,
+				},
+			},
+		},
+	}
+
+	// 设置默认模型
+	// 如果用户没有设置过模型，或者原模型是旧的 antigravity 配置，则更新
+	if config.Model == "" || strings.HasPrefix(config.Model, "antigravity/") {
+		config.Model = "AntigravityToolsGemini/gemini-3-pro-high"
 	}
 
 	if err := writeOpencodeConfig(configPath, config); err != nil {
@@ -168,9 +210,15 @@ func runAntigravity() {
 	fmt.Println("")
 	fmt.Printf("  配置文件: %s\n", configPath)
 	fmt.Println("")
+	fmt.Println("  已添加 Provider:")
+	fmt.Println("    1. AntigravityToolsGemini (推荐)")
+	fmt.Println("    2. AntigravityToolsClaude")
+	fmt.Println("")
+	fmt.Printf("  当前默认模型: %s\n", config.Model)
+	fmt.Println("")
 	fmt.Println("  下一步操作:")
 	fmt.Println("    1. 启动 OpenCode: opencode")
-	fmt.Println("    2. 运行 /models 选择模型")
+	fmt.Println("    2. 运行 /models 确认模型列表")
 	fmt.Println("    3. 开始使用!")
 }
 

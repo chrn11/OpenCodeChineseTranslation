@@ -52,10 +52,35 @@ else
     REPO="1186258278/OpenCodeChineseTranslation"
     VERSION="v8.4.1" # 默认版本
 
+    # 尝试获取最新版本
+    if command -v curl >/dev/null 2>&1; then
+        LATEST_VERSION=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        if [ ! -z "$LATEST_VERSION" ]; then
+            VERSION="$LATEST_VERSION"
+            echo -e "${GREEN}发现最新版本: $VERSION${NC}"
+        else
+            echo -e "${YELLOW}获取最新版本失败，将使用默认版本: $VERSION${NC}"
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        # wget 的 stdout 输出比较嘈杂，使用 -qO-
+        LATEST_VERSION=$(wget -qO- "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        if [ ! -z "$LATEST_VERSION" ]; then
+            VERSION="$LATEST_VERSION"
+            echo -e "${GREEN}发现最新版本: $VERSION${NC}"
+        else
+             echo -e "${YELLOW}获取最新版本失败，将使用默认版本: $VERSION${NC}"
+        fi
+    fi
+
     DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/$BINARY_NAME"
 
     echo -e "\n${YELLOW}[3/4] 下载管理工具...${NC}"
     echo -e "${NC}地址: $DOWNLOAD_URL${NC}"
+
+    # 备份旧文件
+    if [ -f "$TARGET_PATH" ]; then
+        mv "$TARGET_PATH" "$TARGET_PATH.old" 2>/dev/null || true
+    fi
 
     if command -v curl >/dev/null 2>&1; then
         curl -L -o "$TARGET_PATH" "$DOWNLOAD_URL"

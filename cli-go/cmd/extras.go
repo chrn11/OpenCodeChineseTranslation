@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"opencode-cli/internal/core"
 
@@ -56,74 +57,257 @@ func runOhMyOpenCode() {
 	fmt.Println("  Oh-My-OpenCode 安装向导")
 	fmt.Println("══════════════════════════════════════════════════")
 	fmt.Println("")
-	fmt.Println("  Oh-My-OpenCode 是 OpenCode 的增强扩展插件")
-	fmt.Println("  类似于 Oh My Zsh 对 Zsh 的增强")
-	fmt.Println("")
-	fmt.Println("  功能特性:")
-	fmt.Println("    • 智能体: Sisyphus(编排), Oracle(分析), Librarian(研究)")
-	fmt.Println("    • 多模型协作")
-	fmt.Println("    • 提示词优化")
-	fmt.Println("    • 后台任务管理")
+	fmt.Println("  正在初始化官方安装器...")
+	fmt.Println("  这将帮助您配置智能体、订阅和插件集成")
 	fmt.Println("")
 
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("是否安装 Oh-My-OpenCode? [Y/n]: ")
-	answer, _ := reader.ReadString('\n')
-	answer = strings.TrimSpace(strings.ToLower(answer))
-	if answer == "n" || answer == "no" {
-		fmt.Println("安装已取消")
+	// 1. 检查 Bun 环境
+	if _, err := exec.LookPath("bun"); err != nil {
+		fmt.Println("✗ 未检测到 Bun 环境")
+		fmt.Println("  Oh-My-OpenCode 需要 Bun 来运行安装程序")
+		fmt.Println("")
+		fmt.Println("  请先运行: opencode-cli fix-bun")
 		return
 	}
 
-	// 获取配置目录
+	// 2. 收集用户订阅信息
+	reader := bufio.NewReader(os.Stdin)
+
+	// Antigravity (最优先)
+	fmt.Println("❓ [1/1] 您是否使用 Antigravity Tools (Google OAuth) 作为主要模型源? [Y/n]")
+	fmt.Println("   (如果您已运行 'opencode-cli antigravity' 配置过，请选 Yes)")
+	fmt.Print("   请选择 [Y/n]: ")
+	antigravityAns, _ := reader.ReadString('\n')
+	antigravityAns = strings.TrimSpace(strings.ToLower(antigravityAns))
+
+	isAntigravityMode := false
+	if antigravityAns == "" || antigravityAns == "y" || antigravityAns == "yes" {
+		isAntigravityMode = true
+	}
+
+	claudeFlag := "no"
+	openaiFlag := "no"
+	geminiFlag := "no"
+	copilotFlag := "no"
+	zenFlag := "no"
+	zaiFlag := "no"
+
+	if !isAntigravityMode {
+		// 如果不使用 Antigravity，则询问官方订阅
+		fmt.Println("\n❓ [1/6] 您是否有 Claude Pro/Max 订阅?")
+		fmt.Println("   [y] 是 (标准版)")
+		fmt.Println("   [m] 是 (Max 20倍速模式)")
+		fmt.Println("   [n] 否")
+		fmt.Print("   请选择 [y/m/n]: ")
+		claudeAns, _ := reader.ReadString('\n')
+		claudeAns = strings.TrimSpace(strings.ToLower(claudeAns))
+
+		if claudeAns == "m" || claudeAns == "max" {
+			claudeFlag = "max20"
+		} else if claudeAns == "y" || claudeAns == "yes" {
+			claudeFlag = "yes"
+		}
+
+		if claudeFlag == "no" {
+			fmt.Println("")
+			fmt.Println("⚠️  警告: 未检测到 Claude 订阅")
+			fmt.Println("   Sisyphus (编排智能体) 在没有 Claude Opus/3.5 的情况下体验会显著下降。")
+			fmt.Println("   建议至少配置一个高智商模型。")
+			time.Sleep(2 * time.Second)
+		}
+
+		fmt.Print("\n❓ [2/6] 您是否有 OpenAI/ChatGPT Plus 订阅? [y/N]: ")
+		openaiAns, _ := reader.ReadString('\n')
+		openaiAns = strings.TrimSpace(strings.ToLower(openaiAns))
+		if openaiAns == "y" || openaiAns == "yes" {
+			openaiFlag = "yes"
+		}
+
+		fmt.Print("\n❓ [3/6] 您是否要集成 Google Gemini 模型? [y/N]: ")
+		geminiAns, _ := reader.ReadString('\n')
+		geminiAns = strings.TrimSpace(strings.ToLower(geminiAns))
+		if geminiAns == "y" || geminiAns == "yes" {
+			geminiFlag = "yes"
+		}
+
+		fmt.Print("\n❓ [4/6] 您是否有 GitHub Copilot 订阅? [y/N]: ")
+		copilotAns, _ := reader.ReadString('\n')
+		copilotAns = strings.TrimSpace(strings.ToLower(copilotAns))
+		if copilotAns == "y" || copilotAns == "yes" {
+			copilotFlag = "yes"
+		}
+
+		fmt.Print("\n❓ [5/6] 您是否有 Z.ai Coding Plan 订阅? [y/N]: ")
+		zaiAns, _ := reader.ReadString('\n')
+		zaiAns = strings.TrimSpace(strings.ToLower(zaiAns))
+		if zaiAns == "y" || zaiAns == "yes" {
+			zaiFlag = "yes"
+		}
+
+		fmt.Print("\n❓ [6/6] 您是否有 OpenCode Zen 权限? [y/N]: ")
+		zenAns, _ := reader.ReadString('\n')
+		zenAns = strings.TrimSpace(strings.ToLower(zenAns))
+		if zenAns == "y" || zenAns == "yes" {
+			zenFlag = "yes"
+		}
+	} else {
+		fmt.Println("\n✅ 已启用 Antigravity 模式")
+		fmt.Println("   将自动配置智能体使用 AntigravityToolsClaude/Gemini 模型")
+	}
+
+	// 3. 构建并执行安装命令
+	fmt.Println("")
+	fmt.Println("🚀 正在启动官方安装程序...")
+	fmt.Println("   (Bunx 将自动下载并执行 oh-my-opencode)")
+	fmt.Println("")
+
+	args := []string{
+		"oh-my-opencode", "install",
+		"--no-tui",
+		fmt.Sprintf("--claude=%s", claudeFlag),
+		fmt.Sprintf("--openai=%s", openaiFlag),
+		fmt.Sprintf("--gemini=%s", geminiFlag),
+		fmt.Sprintf("--copilot=%s", copilotFlag),
+		fmt.Sprintf("--opencode-zen=%s", zenFlag),
+		fmt.Sprintf("--zai-coding-plan=%s", zaiFlag),
+	}
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		fullArgs := append([]string{"/c", "bun", "x"}, args...)
+		cmd = exec.Command("cmd", fullArgs...)
+	} else {
+		fullArgs := append([]string{"x"}, args...)
+		cmd = exec.Command("bun", fullArgs...)
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	if err := cmd.Run(); err != nil {
+		fmt.Println("")
+		fmt.Printf("✗ 安装失败: %v\n", err)
+		fmt.Println("  请尝试手动安装: bunx oh-my-opencode install")
+		return
+	}
+
+	// 4. Antigravity 后处理配置
+	if isAntigravityMode {
+		fmt.Println("")
+		fmt.Println("🔧 正在安装 Antigravity Auth 插件...")
+		installAntigravityPlugin()
+
+		fmt.Println("🔧 正在应用 Antigravity 智能体配置...")
+		applyAntigravityAgentConfig()
+	}
+
+	fmt.Println("")
+	fmt.Println("══════════════════════════════════════════════════")
+	fmt.Println("  🎉 安装成功!")
+	fmt.Println("══════════════════════════════════════════════════")
+	fmt.Println("")
+	fmt.Println("  下一步:")
+	if isAntigravityMode {
+		fmt.Println("  1. 确保已运行 'opencode-cli antigravity' 配置端点")
+		fmt.Println("  2. 重启 OpenCode 终端")
+	} else {
+		fmt.Println("  1. 运行 'opencode auth login' 进行认证")
+		fmt.Println("  2. 重启 OpenCode 终端")
+	}
+	fmt.Println("  3. 享受您的全新 AI 编程体验!")
+	fmt.Println("")
+}
+
+func installAntigravityPlugin() {
+	// opencode plugin add opencode-antigravity-auth@1.2.8
+	var cmd *exec.Cmd
+	args := []string{"plugin", "add", "opencode-antigravity-auth@1.2.8"}
+
+	if runtime.GOOS == "windows" {
+		fullArgs := append([]string{"/c", "opencode"}, args...)
+		cmd = exec.Command("cmd", fullArgs...)
+	} else {
+		cmd = exec.Command("opencode", args...)
+	}
+
+	// 尝试运行，如果失败(可能是 opencode 没在 PATH) 则尝试通过 bun x opencode
+	if err := cmd.Run(); err != nil {
+		fmt.Println("  ⚠️  opencode 命令直接调用失败，尝试通过 bun x...")
+		if runtime.GOOS == "windows" {
+			args = append([]string{"/c", "bun", "x", "opencode"}, args...)
+			cmd = exec.Command("cmd", args...)
+		} else {
+			args = append([]string{"x", "opencode"}, args...)
+			cmd = exec.Command("bun", args...)
+		}
+
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("  ✗ 插件安装失败: %v\n", err)
+			fmt.Println("    请手动运行: opencode plugin add opencode-antigravity-auth@1.2.8")
+		} else {
+			fmt.Println("  ✓ 插件安装成功")
+		}
+	} else {
+		fmt.Println("  ✓ 插件安装成功")
+	}
+}
+
+func applyAntigravityAgentConfig() {
 	homeDir, _ := os.UserHomeDir()
 	configDir := filepath.Join(homeDir, ".config", "opencode")
 	ohMyConfigPath := filepath.Join(configDir, "oh-my-opencode.json")
 
-	// 创建默认配置
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		fmt.Printf("✗ 创建目录失败: %v\n", err)
-		return
-	}
-
-	defaultConfig := `{
-  "enabled": true,
+	// Antigravity 黄金配置
+	config := `{
+  "google_auth": false,
   "agents": {
-    "sisyphus": {
+    "Sisyphus": {
       "enabled": true,
+      "model": "AntigravityToolsClaude/claude-opus-4-5-thinking",
       "description": "编排智能体，负责任务分解和协调"
     },
     "oracle": {
       "enabled": true,
+      "model": "AntigravityToolsClaude/claude-opus-4-5-thinking",
       "description": "分析智能体，负责代码分析和建议"
     },
     "librarian": {
       "enabled": true,
+      "model": "AntigravityToolsGemini/gemini-3-pro-low",
       "description": "研究智能体，负责文档和资料查询"
+    },
+    "explore": {
+      "enabled": true,
+      "model": "AntigravityToolsGemini/gemini-3-pro-low",
+      "description": "探索智能体，负责代码库搜索"
+    },
+    "frontend-ui-ux-engineer": {
+      "enabled": true,
+      "model": "AntigravityToolsGemini/gemini-3-pro-high",
+      "description": "前端智能体，负责 UI/UX 开发"
+    },
+    "document-writer": {
+      "enabled": true,
+      "model": "AntigravityToolsGemini/gemini-3-pro-low",
+      "description": "文档智能体，负责撰写技术文档"
     }
   },
   "features": {
     "multiModel": true,
     "promptOptimization": true,
     "backgroundTasks": true
+  },
+  "background_task": {
+    "defaultConcurrency": 5
   }
 }`
 
-	if err := os.WriteFile(ohMyConfigPath, []byte(defaultConfig), 0644); err != nil {
-		fmt.Printf("✗ 保存配置失败: %v\n", err)
-		return
+	if err := os.WriteFile(ohMyConfigPath, []byte(config), 0644); err != nil {
+		fmt.Printf("✗ 无法写入配置: %v\n", err)
+	} else {
+		fmt.Println("✓ 已更新 oh-my-opencode.json")
 	}
-
-	fmt.Println("")
-	fmt.Println("✓ Oh-My-OpenCode 安装完成!")
-	fmt.Printf("  配置文件: %s\n", ohMyConfigPath)
-	fmt.Println("")
-	fmt.Println("  已启用的智能体:")
-	fmt.Println("    ✓ Sisyphus (编排)")
-	fmt.Println("    ✓ Oracle (分析)")
-	fmt.Println("    ✓ Librarian (研究)")
-	fmt.Println("")
-	fmt.Println("  重启 OpenCode 后生效")
 }
 
 // runHelper 安装智谱编码助手 (GLM Coding Plan)
@@ -221,6 +405,9 @@ func runHelper() {
 		fmt.Printf("✗ 安装失败: %v\n", err)
 		fmt.Println("")
 		fmt.Println("  可能的解决方案:")
+		if runtime.GOOS != "windows" {
+			fmt.Println("    0. 权限不足? 尝试使用: sudo npm install -g @z_ai/coding-helper")
+		}
 		fmt.Println("    1. 检查网络连接")
 		fmt.Println("    2. 尝试使用淘宝镜像: npm config set registry https://registry.npmmirror.com")
 		fmt.Println("    3. Windows 用户尝试以管理员身份运行")

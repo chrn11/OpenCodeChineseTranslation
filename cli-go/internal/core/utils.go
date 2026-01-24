@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // GetProjectDir 获取项目根目录
@@ -153,6 +154,29 @@ func CopyFile(src, dst string) error {
 
 	if err := EnsureDir(filepath.Dir(dst)); err != nil {
 		return err
+	}
+
+	// Windows 特殊处理：如果目标存在且被占用，尝试重命名
+	if runtime.GOOS == "windows" {
+		if _, err := os.Stat(dst); err == nil {
+			// 使用时间戳防止冲突
+			timestamp := time.Now().Format("20060102150405")
+			oldFile := fmt.Sprintf("%s.old.%s", dst, timestamp)
+
+			// 尝试清理旧的 .old 文件（如果有的话，且未被占用）
+			os.Remove(dst + ".old")
+
+			// 重命名当前文件
+			if err := os.Rename(dst, oldFile); err != nil {
+				// 仅记录警告，继续尝试直接覆盖
+				// fmt.Printf("警告: 无法重命名旧文件: %v\n", err)
+			}
+		}
+	} else {
+		// Unix: 如果存在，先删除，确保 inode 更新
+		if _, err := os.Stat(dst); err == nil {
+			os.Remove(dst)
+		}
 	}
 
 	destination, err := os.Create(dst)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"opencode-cli/internal/core"
 	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/cobra"
 )
@@ -37,8 +38,27 @@ var packageCmd = &cobra.Command{
 		} else if platform != "" {
 			platforms = []string{platform}
 		} else {
-			// 默认打包 windows-x64，或者根据当前系统判断，这里简化为 windows-x64
-			platforms = []string{"windows-x64"}
+			// 自动识别当前平台
+			goos := runtime.GOOS
+			goarch := runtime.GOARCH
+
+			// 映射架构名称
+			archMap := map[string]string{
+				"amd64": "x64",
+				"arm64": "arm64",
+			}
+
+			targetArch, ok := archMap[goarch]
+			if !ok {
+				// 默认为 x64，或者直接使用 goarch
+				targetArch = "x64"
+			}
+
+			// 构建目标名称 (如 windows-x64, linux-arm64)
+			target := fmt.Sprintf("%s-%s", goos, targetArch)
+
+			fmt.Printf("提示: 未指定平台，自动识别为: %s\n", target)
+			platforms = []string{target}
 		}
 
 		var packages []*core.PackageInfo

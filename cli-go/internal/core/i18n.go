@@ -1,12 +1,18 @@
 package core
 
 import (
+	"embed"
+	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
+
+//go:embed assets/opencode-i18n
+var embeddedAssets embed.FS
 
 // TranslationConfig 汉化配置结构
 type TranslationConfig struct {
@@ -46,50 +52,96 @@ func LoadI18nConfig(path string) (*TranslationConfig, error) {
 type I18n struct {
 	i18nDir     string
 	opencodeDir string
+	useEmbedded bool
 }
 
 // NewI18n 创建 I18n 实例
 func NewI18n() (*I18n, error) {
 	i18nDir, err := GetI18nDir()
-	if err != nil {
-		return nil, err
+	useEmbedded := false
+
+	// 如果获取目录失败或目录不存在，尝试使用内置资源
+	if err != nil || !DirExists(i18nDir) {
+		useEmbedded = true
+		i18nDir = "assets/opencode-i18n" // embedded 中的相对路径
 	}
+
 	opencodeDir, err := GetOpencodeDir()
 	if err != nil {
+		// 如果连 OpenCode 源码目录都找不到，那就真的无法继续了
 		return nil, err
 	}
+
+	if useEmbedded {
+		fmt.Println("提示: 使用内置汉化配置")
+	} else {
+		fmt.Printf("提示: 使用外部汉化配置: %s\n", i18nDir)
+	}
+
 	return &I18n{
 		i18nDir:     i18nDir,
 		opencodeDir: opencodeDir,
+		useEmbedded: useEmbedded,
 	}, nil
 }
 
 // LoadConfig 读取所有汉化配置文件
 func (i *I18n) LoadConfig() ([]TranslationConfig, error) {
 	var configs []TranslationConfig
+	var entries []fs.DirEntry
+	var err error
 
-	entries, err := os.ReadDir(i.i18nDir)
+	if i.useEmbedded {
+		entries, err = fs.ReadDir(embeddedAssets, i.i18nDir)
+	} else {
+		entries, err = os.ReadDir(i.i18nDir)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
 	for _, entry := range entries {
 		if entry.IsDir() {
-			categoryDir := filepath.Join(i.i18nDir, entry.Name())
-			files, err := os.ReadDir(categoryDir)
+			categoryName := entry.Name()
+
+			var files []fs.DirEntry
+			if i.useEmbedded {
+				// Embedded FS 路径必须使用正斜杠
+				embedPath := i.i18nDir + "/" + categoryName
+				files, err = fs.ReadDir(embeddedAssets, embedPath)
+			} else {
+				categoryDir := filepath.Join(i.i18nDir, categoryName)
+				files, err = os.ReadDir(categoryDir)
+			}
+
 			if err != nil {
 				continue
 			}
 
 			for _, file := range files {
 				if strings.HasSuffix(file.Name(), ".json") {
-					configPath := filepath.Join(categoryDir, file.Name())
 					var config TranslationConfig
-					if err := ReadJSON(configPath, &config); err != nil {
-						fmt.Printf("警告: 解析配置文件失败 %s: %v\n", configPath, err)
+					var configPath string
+					var readErr error
+
+					if i.useEmbedded {
+						configPath = i.i18nDir + "/" + categoryName + "/" + file.Name()
+						var data []byte
+						data, readErr = fs.ReadFile(embeddedAssets, configPath)
+						if readErr == nil {
+							readErr = json.Unmarshal(data, &config)
+						}
+					} else {
+						configPath = filepath.Join(i.i18nDir, categoryName, file.Name())
+						readErr = ReadJSON(configPath, &config)
+					}
+
+					if readErr != nil {
+						fmt.Printf("警告: 解析配置文件失败 %s: %v\n", configPath, readErr)
 						continue
 					}
-					config.Category = entry.Name()
+					config.Category = categoryName
 					config.FileName = file.Name()
 					config.ConfigPath = configPath
 					configs = append(configs, config)

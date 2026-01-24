@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"opencode-cli/internal/core"
 
@@ -55,7 +56,11 @@ func runDeploy(createShortcut bool) {
 
 	sourcePath := filepath.Join(binDir, exeName)
 	if !core.Exists(sourcePath) {
-		fmt.Println("✗ 未找到 opencode-cli 编译产物，请先运行 build")
+		fmt.Println("✗ 未找到 opencode-cli 编译产物")
+		fmt.Println("")
+		fmt.Println("  请选择一种方式获取:")
+		fmt.Println("  1. 运行 'opencode-cli build'    (从源码编译)")
+		fmt.Println("  2. 运行 'opencode-cli download' (下载官方预编译版)")
 		return
 	}
 
@@ -115,12 +120,12 @@ func runDeploy(createShortcut bool) {
 			fmt.Printf("✗ 部署 OpenCode 失败: %v\n", err)
 		} else {
 			fmt.Printf("✓ 已部署 opencode: %s\n", appTargetPath)
-			
+
 			// Windows 创建 CMD 包装器
 			if runtime.GOOS == "windows" {
 				createCmdWrapper(deployDir, "opencode", opencodeExeName)
 			}
-			
+
 			checkPathPriority("opencode", appTargetPath)
 		}
 	} else {
@@ -148,7 +153,7 @@ func getDeployDir() (string, error) {
 		}
 		return filepath.Join(localAppData, "OpenCode", "bin"), nil
 	}
-	
+
 	// Unix: ~/.local/bin
 	return filepath.Join(homeDir, ".local", "bin"), nil
 }
@@ -187,14 +192,14 @@ func addToPath(dir string) {
 	if runtime.GOOS == "windows" {
 		// 尝试自动添加 PATH (Windows)
 		fmt.Println("正在尝试自动添加到用户环境变量...")
-		
+
 		// 使用 PowerShell 添加 PATH (追加模式)
 		// 注意: 获取 User Path -> 拼接 -> 设置 User Path
 		psCommand := fmt.Sprintf(
 			`$currentPath = [Environment]::GetEnvironmentVariable("Path", "User"); if (-not $currentPath.ToLower().Contains("%s".ToLower())) { [Environment]::SetEnvironmentVariable("Path", $currentPath + ";%s", "User") }`,
 			dir, dir,
 		)
-		
+
 		cmd := exec.Command("powershell", "-NoProfile", "-Command", psCommand)
 		if err := cmd.Run(); err != nil {
 			fmt.Printf("✗ 自动添加失败: %v\n", err)
@@ -254,10 +259,59 @@ func createUnixShortcut(targetPath string) {
 	} else {
 		fmt.Printf("✓ 已创建启动器: %s\n", desktopPath)
 	}
+
+	// 尝试创建 Linux .desktop 文件
+	if runtime.GOOS == "linux" {
+		createLinuxDesktopFile(targetPath)
+	}
+}
+
+func createLinuxDesktopFile(targetPath string) {
+	homeDir, _ := os.UserHomeDir()
+	appsDir := filepath.Join(homeDir, ".local", "share", "applications")
+
+	// 如果目录不存在，尝试创建
+	if !core.DirExists(appsDir) {
+		_ = os.MkdirAll(appsDir, 0755)
+	}
+
+	if core.DirExists(appsDir) {
+		desktopFile := filepath.Join(appsDir, "opencode-cli.desktop")
+		content := fmt.Sprintf(`[Desktop Entry]
+Type=Application
+Name=OpenCode CLI
+Comment=OpenCode 汉化管理工具
+Exec="%s" interactive
+Terminal=true
+Categories=Development;
+`, targetPath)
+
+		if err := os.WriteFile(desktopFile, []byte(content), 0644); err == nil {
+			fmt.Printf("✓ 已创建 Linux 菜单快捷方式: %s\n", desktopFile)
+		}
+	}
 }
 
 // copyFileDeploy 复制文件
 func copyFileDeploy(src, dst string) error {
+	// Windows 特殊处理：如果目标存在且被占用，尝试重命名
+	if runtime.GOOS == "windows" {
+		if _, err := os.Stat(dst); err == nil {
+			// 使用时间戳防止冲突
+			timestamp := time.Now().Format("20060102150405")
+			oldFile := fmt.Sprintf("%s.old.%s", dst, timestamp)
+
+			// 尝试清理旧的 .old 文件
+			os.Remove(dst + ".old")
+
+			// 重命名当前文件
+			if err := os.Rename(dst, oldFile); err != nil {
+				// 仅记录警告，继续尝试直接覆盖（也许没被占用呢）
+				// fmt.Printf("警告: 无法重命名旧文件: %v\n", err)
+			}
+		}
+	}
+
 	// 如果目标文件存在，先删除
 	if core.Exists(dst) {
 		if err := os.Remove(dst); err != nil {
@@ -291,7 +345,7 @@ func containsPath(pathVar, dir string) bool {
 	paths := filepath.SplitList(pathVar)
 	// 标准化路径比较
 	cleanDir := filepath.Clean(strings.ToLower(dir))
-	
+
 	for _, p := range paths {
 		if filepath.Clean(strings.ToLower(p)) == cleanDir {
 			return true
@@ -370,10 +424,10 @@ func checkPathPriority(cmdName, deployedPath string) {
 				} else {
 					exts = []string{""}
 				}
-				
+
 				// 清理 opencode 和 opencode-cli
 				targets := []string{"opencode", "opencode-cli"}
-				
+
 				// 获取基础路径 (去除文件名)
 				baseDir := filepath.Dir(realFoundPath)
 
@@ -389,7 +443,7 @@ func checkPathPriority(cmdName, deployedPath string) {
 						}
 					}
 				}
-				
+
 				fmt.Println("清理完成。请重启终端以生效。")
 			}
 		}

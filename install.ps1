@@ -40,7 +40,17 @@ if (Test-Path $localFile) {
     # 4. 在线下载
     Write-Color "`n[2/4] 获取最新版本信息..." "Yellow"
     $repo = "1186258278/OpenCodeChineseTranslation"
-    $tagName = "v8.4.1" # 默认版本
+    $tagName = "v8.4.1" # 默认版本作为后备
+
+    try {
+        $latest = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -ErrorAction Stop
+        if ($latest.tag_name) {
+            $tagName = $latest.tag_name
+            Write-Color "发现最新版本: $tagName" "Green"
+        }
+    } catch {
+        Write-Color "获取最新版本失败，将尝试使用默认版本: $tagName" "Yellow"
+    }
 
     # 尝试使用 CDN 加速下载 (jsDelivr)
     # jsDelivr 不支持直接加速 release assets，但支持 raw files
@@ -55,6 +65,21 @@ if (Test-Path $localFile) {
     Write-Color "地址: $downloadUrl" "Gray"
     
     try {
+        # 处理文件占用 (Windows)
+        if (Test-Path $exePath) {
+            $timestamp = Get-Date -Format "yyyyMMddHHmmss"
+            
+            # 尝试清理非常旧的备份 (可选，这里先只尝试清理最近的 .old)
+            if (Test-Path "$exePath.old") { Remove-Item -Force "$exePath.old" -ErrorAction SilentlyContinue }
+
+            try {
+                Rename-Item -Path $exePath -NewName "$fileName.old.$timestamp" -Force -ErrorAction Stop
+                Write-Color "已备份旧版本: $fileName.old.$timestamp" "Gray"
+            } catch {
+                Write-Warning "无法重命名旧文件，如果文件正在运行，更新可能会失败。"
+            }
+        }
+
         Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath
         Write-Color "下载成功!" "Green"
     } catch {

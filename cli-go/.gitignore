@@ -1,0 +1,8 @@
+# Ignore build artifacts
+dist/
+main.exe
+opencode-cli.exe
+opencode-cli
+
+# Ignore temporary assets for embedding
+internal/core/assets/

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"opencode-cli/internal/core"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -119,6 +121,9 @@ func checkGitUpdate(dir string) bool {
 	// git fetch --quiet
 	fetchCmd := exec.Command("git", "fetch", "--quiet")
 	fetchCmd.Dir = dir
+	// 显式静默：防止任何后台输出破坏 TUI 界面
+	fetchCmd.Stdout = nil
+	fetchCmd.Stderr = nil
 	fetchCmd.Run() // 忽略错误，如果没网等情况
 
 	// 优先检查 origin/dev (开发分支)，其次 origin/main
@@ -200,6 +205,10 @@ func (m MenuModel) calculateMenuStartRow() int {
 func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// 修复：忽略无效的窗口尺寸 (Windows 后台运行时可能会发送 0x0)
+		if msg.Width <= 0 || msg.Height <= 0 {
+			return m, nil
+		}
 		m.Width = msg.Width
 		m.Height = msg.Height
 		m.MenuStartRow = m.calculateMenuStartRow()
@@ -293,6 +302,10 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Result = m.Items[idx].Value
 				return m, tea.Quit
 			}
+
+		// 添加手动刷新快捷键
+		case "ctrl+l":
+			return m, tea.ClearScreen
 		}
 	}
 	return m, nil
@@ -490,13 +503,20 @@ func (m MenuModel) View() string {
 	content := strings.Join(lines, "\n")
 
 	// 使用 lipgloss 居中放置
+	// 关键修复: 高度减 1，防止 Windows 终端触底自动滚动导致界面错位
+	renderHeight := m.Height
+	if renderHeight > 0 {
+		renderHeight = renderHeight - 1
+	}
+
 	style := lipgloss.NewStyle().
 		Width(m.Width).
-		Height(m.Height).
+		Height(renderHeight).
 		Align(lipgloss.Center, lipgloss.Center)
 
 	// 更新菜单起始行（考虑居中后的偏移）
-	verticalPadding := (m.Height - len(lines)) / 2
+	// 注意：这里使用 renderHeight 进行计算
+	verticalPadding := (renderHeight - len(lines)) / 2
 	if verticalPadding < 0 {
 		verticalPadding = 0
 	}
@@ -512,7 +532,7 @@ func (m MenuModel) renderStatus() []string {
 	// 第一行：版本和路径
 	version := m.Status.Version
 	if version == "" {
-		version = "v7.3"
+		version = "v" + core.VERSION
 	}
 	path := m.Status.Path
 	if path == "" {

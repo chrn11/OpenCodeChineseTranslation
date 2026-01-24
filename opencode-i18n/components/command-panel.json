@@ -20,10 +20,6 @@
     "\"Write heap snapshot\"": "\"写入堆快照\"",
     "\"Suspend terminal\"": "\"挂起终端\"",
     "\"Disable terminal title\"": "\"禁用终端标题\"",
-    "\"Enable terminal title\"": "\"启用终端标题\"",
-    "category: \"Session\"": "category: \"会话\"",
-    "category: \"Agent\"": "category: \"智能体\"",
-    "category: \"Provider\"": "category: \"提供商\"",
-    "category: \"System\"": "category: \"系统\""
+    "\"Enable terminal title\"": "\"启用终端标题\""
   }
 }

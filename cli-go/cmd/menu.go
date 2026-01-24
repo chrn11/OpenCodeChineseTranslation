@@ -54,6 +54,15 @@ func RunMenu() {
 		// 等待用户按键继续
 		fmt.Println("\n✓ 操作完成，按回车键返回菜单...")
 		fmt.Scanln()
+
+		// 强制清屏，防止上一命令的输出残留影响 TUI 渲染
+		if runtime.GOOS == "windows" {
+			cmd := exec.Command("cmd", "/c", "cls")
+			cmd.Stdout = os.Stdout
+			cmd.Run()
+		} else {
+			fmt.Print("\033[H\033[2J")
+		}
 	}
 }
 
@@ -317,14 +326,19 @@ func openBrowser(url string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		// 使用 rundll32 避免 cmd/powershell 路径问题
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		// 使用 cmd /c start "" "url" 是最稳健的方式
+		// 第一个空引号是窗口标题，防止 start 把 url 当作标题
+		cmd = exec.Command("cmd", "/c", "start", "", url)
 	case "darwin":
 		cmd = exec.Command("open", url)
 	default:
 		cmd = exec.Command("xdg-open", url)
 	}
-	err := cmd.Run()
+	// 将输出重定向到空，防止干扰 TUI
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	err := cmd.Start() // 使用 Start 而不是 Run，让它在后台运行
 	if err != nil {
 		fmt.Printf("无法打开浏览器: %v\n", err)
 	}
