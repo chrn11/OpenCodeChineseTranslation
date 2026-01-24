@@ -8,7 +8,7 @@ function Write-Color($text, $color) {
 }
 
 Write-Color "==============================================" "Cyan"
-Write-Color "   OpenCode 汉化管理工具安装脚本 (v8.2)   " "Cyan"
+Write-Color "   OpenCode 汉化管理工具安装脚本 (v8.4.1)   " "Cyan"
 Write-Color "==============================================" "Cyan"
 
 # 1. 检测架构
@@ -40,7 +40,7 @@ if (Test-Path $localFile) {
     # 4. 在线下载
     Write-Color "`n[2/4] 获取最新版本信息..." "Yellow"
     $repo = "1186258278/OpenCodeChineseTranslation"
-    $tagName = "v8.3.0" # 默认版本
+    $tagName = "v8.4.1" # 默认版本
 
     # 尝试使用 CDN 加速下载 (jsDelivr)
     # jsDelivr 不支持直接加速 release assets，但支持 raw files

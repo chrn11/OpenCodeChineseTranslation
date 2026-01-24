@@ -154,6 +154,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Get Build Timestamp
+        id: date
+        run: echo "timestamp=$(date -u +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_OUTPUT
+
       - name: Download CLI Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -190,8 +194,12 @@ jobs:
       - name: Generate Release Notes
         run: |
           VERSION=${{ env.TAG_NAME }}
+          TIMESTAMP="${{ steps.date.outputs.timestamp }}"
+          
           cat > release_notes.md << EOF
           ## OpenCode 中文汉化版 ${{ env.TAG_NAME }}
+          
+          > 🕒 **更新时间**: ${TIMESTAMP}
           
           ### 📦 下载说明
           
@@ -222,7 +230,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
-          name: OpenCode 中文汉化版 ${{ env.TAG_NAME }}
+          name: "OpenCode 中文汉化版 ${{ env.TAG_NAME }} (${{ steps.date.outputs.timestamp }})"
           body_path: release_notes.md
           files: |
             dist/*

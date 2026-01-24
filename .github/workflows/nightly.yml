@@ -1,9 +1,12 @@
 name: Nightly Build
 
 on:
+  push:
+    paths:
+      - '.github/workflows/nightly.yml'
   schedule:
-    # 每小时检测一次上游更新 (每小时的第 0 分钟)
-    - cron: '0 * * * *'
+    # 每小时检测一次上游更新 (改为每小时的第 16 分钟，避开整点高峰期)
+    - cron: '16 * * * *'
   workflow_dispatch:
     inputs:
       force_build:

@@ -4,7 +4,7 @@
 set -e
 
 APP_NAME="opencode-cli"
-VERSION="7.3.3"
+VERSION="8.4.1"
 
 # 输出目录
 OUTPUT_DIR="dist"
