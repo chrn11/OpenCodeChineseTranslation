@@ -54,6 +54,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+          cache-dependency-path: cli-go/go.sum
 
       - name: Build CLI
         env:
@@ -62,8 +63,8 @@ jobs:
           CGO_ENABLED: 0  # 禁用 CGO 以实现静态链接，解决 GLIBC 兼容性问题
         run: |
           # Copy assets FIRST
-          mkdir -p cli-go/internal/core/assets/opencode-i18n
-          cp -r opencode-i18n/* cli-go/internal/core/assets/opencode-i18n/
+          mkdir -p cli-go/internal/core/assets
+          cp -r opencode-i18n cli-go/internal/core/assets/
 
           cd cli-go
           go build -ldflags="-s -w" -o ../dist/opencode-cli-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }} .
@@ -103,6 +104,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+          cache-dependency-path: cli-go/go.sum
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -112,8 +114,8 @@ jobs:
       - name: Build CLI for current platform
         run: |
           # Copy assets FIRST (critical fix)
-          mkdir -p cli-go/internal/core/assets/opencode-i18n
-          cp -r opencode-i18n/* cli-go/internal/core/assets/opencode-i18n/
+          mkdir -p cli-go/internal/core/assets
+          cp -r opencode-i18n cli-go/internal/core/assets/
 
           cd cli-go
           go build -o ../opencode-cli .
