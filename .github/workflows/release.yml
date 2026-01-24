@@ -111,6 +111,10 @@ jobs:
 
       - name: Build CLI for current platform
         run: |
+          # Copy assets FIRST (critical fix)
+          mkdir -p cli-go/internal/core/assets/opencode-i18n
+          cp -r opencode-i18n/* cli-go/internal/core/assets/opencode-i18n/
+
           cd cli-go
           go build -o ../opencode-cli .
 
