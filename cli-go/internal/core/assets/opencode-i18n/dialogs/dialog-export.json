@@ -4,7 +4,7 @@
   "replacements": {
     "placeholder=\"Enter filename\"": "placeholder=\"输入文件名\"",
     "Export Options": "导出选项",
-    "Filename:": "文件名:",
+    ">Filename:<": ">文件名:<",
     "Include thinking": "包含思考过程",
     "Include tool details": "包含工具详情",
     "Include assistant metadata": "包含助手元数据",
