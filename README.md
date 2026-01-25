@@ -159,6 +159,21 @@ opencode-cli download
 
 ---
 
+## 常见问题 (FAQ)
+
+### Q: 为什么安装/部署后运行 OpenCode 还是英文版？
+A: 这通常是因为您的系统中存在多个 OpenCode 版本（例如通过 npm、Scoop 或 Chocolatey 安装的官方版），且系统环境变量 (PATH) 优先加载了旧版本。
+
+**解决方法**：
+1. 运行 `npm uninstall -g opencode` 卸载官方版。
+2. 或者在终端运行 `Get-Command opencode -All` (Windows) 或 `which -a opencode` (Mac/Linux) 查看所有版本路径，手动删除非汉化版。
+3. 重启终端以刷新环境变量缓存。
+
+### Q: 为什么每次 OpenCode 更新后汉化就失效了？
+A: OpenCode 更新频繁，源码变动会导致汉化补丁无法匹配。请使用 `opencode-cli` 更新源码并重新应用汉化，或者下载最新的 Nightly 版本。
+
+---
+
 ## 许可证
 
 本项目基于 [MIT License](LICENSE) 开源。
