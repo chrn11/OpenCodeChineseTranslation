@@ -179,22 +179,8 @@ func runVerify(detailed, dryRun bool) {
 	fmt.Println("\n✓ 验证完成")
 }
 
-// findJSONFiles 查找目录下所有 JSON 文件
-func findJSONFiles(dir string) ([]string, error) {
-	var files []string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".json") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	return files, err
-}
-
-// extractVariables 提取文本中的变量 {xxx}
+// extractVariables 提取文本中的简单变量 {xxx}
+// 只提取由字母、数字、下划线组成的变量，忽略复杂表达式
 func extractVariables(s string) []string {
 	var vars []string
 	inVar := false
@@ -205,7 +191,11 @@ func extractVariables(s string) []string {
 			inVar = true
 			current.Reset()
 		} else if c == '}' && inVar {
-			vars = append(vars, current.String())
+			val := current.String()
+			// 过滤复杂表达式：如果包含空格、点号、引号等，视为代码逻辑而非简单变量
+			if !strings.ContainsAny(val, " .\"'()[]?") {
+				vars = append(vars, val)
+			}
 			inVar = false
 		} else if inVar {
 			current.WriteRune(c)
