@@ -239,11 +239,6 @@ const MENU_OPTIONS = [
     hint: "扫描 → 汉化 → 检查 → 修复 → 应用 → 构建 → 部署",
   },
   {
-    value: "patch",
-    label: label("📊", "应用用量补丁"),
-    hint: "在每条消息后显示 token 用量（需先完成汉化）",
-  },
-  {
     value: "ai",
     label: label("⚙️", "配置 AI"),
     hint: "设置 OPENAI_API_KEY/BASE/MODEL（编译版也可用）",
@@ -273,13 +268,6 @@ const NEXT_STEP_MAP = {
       { value: "exit", label: label("👋", "退出程序") },
     ],
   },
-  patch: {
-    recommended: "menu",
-    options: [
-      { value: "menu", label: label("📋", "返回主菜单") },
-      { value: "exit", label: label("👋", "退出程序") },
-    ],
-  },
 };
 
 async function runCommand(cmd) {
@@ -295,10 +283,6 @@ async function runCommand(cmd) {
         break;
       case "fix":
         await fixCmd.run({});
-        break;
-      case "patch":
-        const { applyPatch } = require("../plugins/token-usage-patch.js");
-        applyPatch();
         break;
       case "ai":
         await aiCmd.run({ interactive: true });
