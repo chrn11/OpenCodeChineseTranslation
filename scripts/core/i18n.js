@@ -448,9 +448,34 @@ ${content}
       const isSimpleWord = /^[a-zA-Z0-9]+$/.test(normalizedFind);
 
       if (isSimpleWord) {
-        const wordBoundaryPattern = new RegExp(`\\b${normalizedFind}\\b`, "g");
-        if (wordBoundaryPattern.test(content)) {
-          content = content.replace(wordBoundaryPattern, normalizedReplace);
+        // 简单单词替换需要更严格的上下文检查
+        // 只替换在引号内、JSX 文本中的单词，避免替换代码标识符
+        
+        // 排除模式：不替换这些上下文中的单词
+        // 1. import/from 语句中的路径
+        // 2. 连字符标识符中的单词 (dialog-session-rename)
+        // 3. 驼峰命名中的单词 (DialogSessionRename)
+        // 4. 组件标签名 (<DialogSession>)
+        
+        // 使用更精确的替换：只替换在字符串属性值中的独立单词
+        // 匹配: title="rename" / label="delete" / >rename< / : "rename"
+        const safePatterns = [
+          // 属性值中的独立单词: title="rename" 或 title='rename'
+          new RegExp(`((?:title|label|text|message|placeholder|description|category)=["'])${normalizedFind}(["'])`, 'g'),
+          // JSX 文本中的独立单词: >rename<
+          new RegExp(`(>\\s*)${normalizedFind}(\\s*<)`, 'g'),
+          // 对象属性值中的独立单词: title: "rename" 或 message: 'rename'
+          new RegExp(`((?:title|label|text|message):\\s*["'])${normalizedFind}(["'])`, 'g'),
+        ];
+
+        let replaced = false;
+        for (const pattern of safePatterns) {
+          if (pattern.test(content)) {
+            content = content.replace(pattern, `$1${normalizedReplace}$2`);
+            replaced = true;
+          }
+        }
+        if (replaced) {
           replaceCount++;
         }
       } else {

@@ -408,6 +408,7 @@ class Translator {
         if (!extracted.text || extracted.text.length < 2) continue;
         if (/[\u4e00-\u9fa5]/.test(extracted.text)) continue; // 已有中文
         if (/^[A-Z_]+$/.test(extracted.text)) continue; // 全大写常量
+        if (/^[A-Z_][A-Z0-9_]+$/.test(extracted.text)) continue; // 常量名 API_KEY, MAX_LENGTH
         if (
           /^[A-Z][a-z]+[A-Z]/.test(extracted.text) &&
           extracted.text.length < 10
@@ -420,6 +421,23 @@ class Translator {
         if (/^[a-z_]+$/.test(extracted.text)) continue; // 纯小写标识符
         // 已是双语格式：xxx (English) 或 xxx（中文）
         if (/\([A-Z][^)]+\)\s*$/.test(extracted.text)) continue;
+        
+        // === 新增：防止翻译代码标识符 ===
+        // 文件路径：./xxx, ../xxx, @/xxx
+        if (/^\.\.?\//.test(extracted.text)) continue;
+        if (/^@\//.test(extracted.text)) continue;
+        // kebab-case 标识符：dialog-session, message-list
+        if (/^[a-z]+(-[a-z]+)+$/.test(extracted.text)) continue;
+        // PascalCase 组件名（无空格的连续大写开头）：DialogSession, MessageList
+        if (/^[A-Z][a-z]+([A-Z][a-z]+)+$/.test(extracted.text) && !/\s/.test(extracted.text)) continue;
+        // camelCase 变量名：handleClick, onSubmit
+        if (/^[a-z]+([A-Z][a-z]+)+$/.test(extracted.text) && !/\s/.test(extracted.text)) continue;
+        // 包含连字符但不像句子（文件名/标识符）
+        if (/-/.test(extracted.text) && !/\s/.test(extracted.text) && extracted.text.length < 30) continue;
+        // 纯数字或数字开头
+        if (/^\d/.test(extracted.text)) continue;
+        // 包含特殊代码字符
+        if (/[{}()<>[\]$@#]/.test(extracted.text) && extracted.text.length < 20) continue;
 
         texts.push(extracted);
       }
@@ -567,8 +585,17 @@ class Translator {
 2. 例如："Help" → "帮助 (Help)"
 3. 保持专业术语准确：Session=会话, Model=模型, Agent=代理/智能体, Provider=提供商
 4. UI 文本要口语化自然
-5. 保留变量和代码部分不翻译，如 {highlight}, {keybind.print(...)}
-6. 快捷键保持英文：Ctrl+X, Enter, Escape
+5. 快捷键保持英文：Ctrl+X, Enter, Escape
+
+**【重要】以下内容绝对不能翻译，必须原样保留：**
+- 变量占位符：{highlight}, {keybind.print(...)}, {name}, {count} 等
+- 文件路径和 import 路径：./dialog-session, ../components/Button, @/utils
+- 组件名（PascalCase）：DialogSession, MessageList, CommandPalette
+- 函数名（camelCase）：handleClick, onSubmit, useState, getText
+- 连字符标识符（kebab-case）：dialog-session, message-list, open-code
+- 以 . / @ # 开头的路径或标识符
+- 常量名（全大写）：API_KEY, MAX_LENGTH, DEFAULT_VALUE
+- 如果无法确定是否应该翻译，保持原文不变
 
 **待翻译文本（来自 ${fileName}）：**
 ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
@@ -847,34 +874,54 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
     if (needTranslate.length > 0) {
       indent(`需要 AI 翻译 ${needTranslate.length} 处`);
 
+      // 分批处理：每批最多 20 条，防止 AI 返回 JSON 过长被截断
+      const BATCH_SIZE = 20;
+      const batches = [];
+      for (let i = 0; i < needTranslate.length; i += BATCH_SIZE) {
+        batches.push(needTranslate.slice(i, i + BATCH_SIZE));
+      }
+
+      if (batches.length > 1) {
+        indent(`分 ${batches.length} 批处理（每批 ${BATCH_SIZE} 条）`);
+      }
+
       try {
-        // 调用 AI 翻译
-        const response = await this.callAIWithRetry(needTranslate, fileName);
+        // 逐批调用 AI 翻译
+        for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+          const batch = batches[batchIdx];
+          
+          if (batches.length > 1) {
+            indent(`  处理第 ${batchIdx + 1}/${batches.length} 批 (${batch.length} 条)...`);
+          }
 
-        // 解析翻译结果
-        aiTranslations = this.parseTranslations(response, needTranslate);
+          const response = await this.callAIWithRetry(batch, fileName);
 
-        // 写入缓存
-        for (const item of needTranslate) {
-          const translated = aiTranslations[item.original];
-          if (translated) {
-            // 提取翻译后的文本（去掉原格式）
-            const translatedText = translated.replace(
-              item.original.replace(item.text, ""),
-              "",
-            );
-            // 从 "title: \"中文 (English)\"" 中提取 "中文 (English)"
-            const match = translated.match(/["']([^"']+)["']/);
-            if (match) {
-              this.setCache(item.text, match[1]);
+          // 解析翻译结果
+          const batchTranslations = this.parseTranslations(response, batch);
+          Object.assign(aiTranslations, batchTranslations);
+
+          // 写入缓存
+          for (const item of batch) {
+            const translated = batchTranslations[item.original];
+            if (translated) {
+              // 从 "title: \"中文 (English)\"" 中提取 "中文 (English)"
+              const match = translated.match(/["']([^"']+)["']/);
+              if (match) {
+                this.setCache(item.text, match[1]);
+              }
             }
+          }
+
+          // 批次间延迟，避免速率限制
+          if (batchIdx < batches.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 800));
           }
         }
         this.saveCache();
       } catch (err) {
         error(`AI 翻译失败: ${err.message}`);
-        // 即使 AI 翻译失败，也返回缓存的结果
-        if (cacheHits === 0) {
+        // 即使 AI 翻译失败，也返回已完成的结果
+        if (cacheHits === 0 && Object.keys(aiTranslations).length === 0) {
           return null;
         }
       }
