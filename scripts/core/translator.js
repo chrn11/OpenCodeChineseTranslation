@@ -874,53 +874,77 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
     if (needTranslate.length > 0) {
       indent(`需要 AI 翻译 ${needTranslate.length} 处`);
 
-      // 分批处理：每批最多 20 条，防止 AI 返回 JSON 过长被截断
-      const BATCH_SIZE = 20;
+      // 分批处理：每批最多 15 条，防止 AI 返回 JSON 过长被截断
+      const BATCH_SIZE = 15;
+      // 并发数：同时处理的批次数量（避免 API 限流）
+      const CONCURRENCY = 3;
+      
       const batches = [];
       for (let i = 0; i < needTranslate.length; i += BATCH_SIZE) {
-        batches.push(needTranslate.slice(i, i + BATCH_SIZE));
+        batches.push({ index: batches.length, items: needTranslate.slice(i, i + BATCH_SIZE) });
       }
 
       if (batches.length > 1) {
-        indent(`分 ${batches.length} 批处理（每批 ${BATCH_SIZE} 条）`);
+        indent(`分 ${batches.length} 批并行处理（每批 ${BATCH_SIZE} 条，并发 ${Math.min(CONCURRENCY, batches.length)} 个）`);
       }
 
-      try {
-        // 逐批调用 AI 翻译
-        for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
-          const batch = batches[batchIdx];
+      // 处理单个批次的函数
+      const processBatch = async (batch) => {
+        try {
+          const response = await this.callAIWithRetry(batch.items, fileName);
+          const batchTranslations = this.parseTranslations(response, batch.items);
           
-          if (batches.length > 1) {
-            indent(`  处理第 ${batchIdx + 1}/${batches.length} 批 (${batch.length} 条)...`);
-          }
-
-          const response = await this.callAIWithRetry(batch, fileName);
-
-          // 解析翻译结果
-          const batchTranslations = this.parseTranslations(response, batch);
-          Object.assign(aiTranslations, batchTranslations);
-
           // 写入缓存
-          for (const item of batch) {
+          for (const item of batch.items) {
             const translated = batchTranslations[item.original];
             if (translated) {
-              // 从 "title: \"中文 (English)\"" 中提取 "中文 (English)"
               const match = translated.match(/["']([^"']+)["']/);
               if (match) {
                 this.setCache(item.text, match[1]);
               }
             }
           }
+          
+          return { index: batch.index, success: true, translations: batchTranslations, count: batch.items.length };
+        } catch (err) {
+          return { index: batch.index, success: false, error: err.message, count: batch.items.length };
+        }
+      };
 
-          // 批次间延迟，避免速率限制
-          if (batchIdx < batches.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 800));
+      // 控制并发的执行器
+      const executeWithConcurrency = async (tasks, concurrency) => {
+        const results = [];
+        let completed = 0;
+        
+        for (let i = 0; i < tasks.length; i += concurrency) {
+          const chunk = tasks.slice(i, i + concurrency);
+          const chunkResults = await Promise.all(chunk.map(processBatch));
+          
+          for (const result of chunkResults) {
+            results.push(result);
+            completed++;
+            if (result.success) {
+              Object.assign(aiTranslations, result.translations);
+              indent(`  ✓ 批次 ${result.index + 1}/${batches.length} 完成 (${result.count} 条)`);
+            } else {
+              warn(`  ✗ 批次 ${result.index + 1}/${batches.length} 失败: ${result.error}`);
+            }
+          }
+          
+          // 并发组之间短暂延迟，避免速率限制
+          if (i + concurrency < tasks.length) {
+            await new Promise((resolve) => setTimeout(resolve, 300));
           }
         }
+        
+        return results;
+      };
+
+      try {
+        await executeWithConcurrency(batches, CONCURRENCY);
         this.saveCache();
       } catch (err) {
         error(`AI 翻译失败: ${err.message}`);
-        // 即使 AI 翻译失败，也返回已完成的结果
         if (cacheHits === 0 && Object.keys(aiTranslations).length === 0) {
           return null;
         }
