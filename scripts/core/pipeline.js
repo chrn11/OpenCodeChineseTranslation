@@ -47,6 +47,7 @@ function presetToSteps(preset) {
         "cleanSource",
         "repairPack",
         "applyToSource",
+        "applyTokenUsagePatch",
         "qualitySource",
         "build",
         "deploy",
@@ -57,6 +58,7 @@ function presetToSteps(preset) {
         "cleanSource",
         "repairPack",
         "applyToSource",
+        "applyTokenUsagePatch",
         "qualitySource",
         "build",
         "deploy",
@@ -267,6 +269,7 @@ function printStepSummary(stepResult) {
     verifyPack: "验证语言包",
     packQuality: "语言包质量检查",
     applyToSource: "应用语言包到源码",
+    applyTokenUsagePatch: "应用用量显示补丁",
     qualitySource: "替换后质量检查",
     build: "构建编译",
     deployToLocal: "部署到本地",
@@ -643,6 +646,23 @@ function buildSteps(options = {}) {
         summary: "已应用到源码",
         details: result,
       };
+    },
+    applyTokenUsagePatch: async () => {
+      nestedStep("应用用量显示补丁");
+      try {
+        const { applyPatch } = require("../plugins/token-usage-patch.js");
+        const result = applyPatch();
+        if (result) {
+          nestedSuccess("用量显示补丁已应用");
+          return { ok: true, changed: true, summary: "补丁已应用" };
+        } else {
+          nestedWarn("补丁未能应用（可能目标代码已变更）");
+          return { ok: true, changed: false, summary: "补丁跳过" };
+        }
+      } catch (e) {
+        nestedError(`补丁应用失败: ${e.message}`);
+        return { ok: true, changed: false, summary: "补丁失败（非致命）" };
+      }
     },
     qualitySource: async (ctx) => {
       if (skipQualitySource)
