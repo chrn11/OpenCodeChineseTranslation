@@ -12,3 +12,9 @@
 *.json text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+
+# 从上游 sync 时保留本地版本（不被上游覆盖）
+# 这些目录/文件使用了不同于上游的结构
+opencode-i18n/** merge=ours
+scripts/core/i18n.js merge=ours
+scripts/core/translator.js merge=ours
