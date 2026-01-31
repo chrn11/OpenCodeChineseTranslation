@@ -1,0 +1,11 @@
+{
+  "file": "src\\cli\\cmd\\tui\\component\\dialog-session-list.tsx",
+  "description": "dialog-session-list.tsx 汉化配置",
+  "replacements": {
+    "title: \"Today\"": "title: \"今天 (Today)\"",
+    "Press ${keybind.print(\"session_delete\")} again to confirm": "再次按下 ${keybind.print(\"session_delete\")} 以确认 (Press again to confirm)",
+    "title: \"Sessions\"": "title: \"会话 (Sessions)\"",
+    "title: \"delete\"": "title: \"删除 (delete)\"",
+    "title: \"rename\"": "title: \"重命名 (rename)\""
+  }
+}

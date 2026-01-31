@@ -1,0 +1,10 @@
+{
+  "files": [
+    "src\\cli\\cmd\\tui\\context\\keybind.tsx",
+    "src\\cli\\cmd\\tui\\context\\exit.tsx"
+  ],
+  "reasons": {
+    "src\\cli\\cmd\\tui\\context\\keybind.tsx": "该文件主要包含 TUI 的按键绑定逻辑和状态管理，没有直接显示给用户的硬编码 UI 文本字符串。'Keybind' 为 Context 名称，'<leader>' 为内部逻辑占位符。",
+    "src\\cli\\cmd\\tui\\context\\exit.tsx": "该文件仅包含逻辑处理、错误格式化调用和退出操作，没有硬编码的用户可见 UI 文本。"
+  }
+}

@@ -449,29 +449,23 @@ ${content}
 
       if (isSimpleWord) {
         // 简单单词替换需要更严格的上下文检查
-        // 只替换在引号内、JSX 文本中的单词，避免替换代码标识符
+        // 只替换在引号内的单词，避免替换代码标识符
         
-        // 排除模式：不替换这些上下文中的单词
-        // 1. import/from 语句中的路径
-        // 2. 连字符标识符中的单词 (dialog-session-rename)
-        // 3. 驼峰命名中的单词 (DialogSessionRename)
-        // 4. 组件标签名 (<DialogSession>)
-        
-        // 使用更精确的替换：只替换在字符串属性值中的独立单词
-        // 匹配: title="rename" / label="delete" / >rename< / : "rename"
+        // 安全模式：只替换在特定属性值中的独立单词
+        // 注意：不使用全局标志 g，避免 test() 和 replace() 冲突
         const safePatterns = [
-          // 属性值中的独立单词: title="rename" 或 title='rename'
-          new RegExp(`((?:title|label|text|message|placeholder|description|category)=["'])${normalizedFind}(["'])`, 'g'),
-          // JSX 文本中的独立单词: >rename<
-          new RegExp(`(>\\s*)${normalizedFind}(\\s*<)`, 'g'),
-          // 对象属性值中的独立单词: title: "rename" 或 message: 'rename'
-          new RegExp(`((?:title|label|text|message):\\s*["'])${normalizedFind}(["'])`, 'g'),
+          // 属性值中的独立单词: title="Session" 或 category="Session"
+          `((?:title|label|text|message|placeholder|description|category)=["'])${normalizedFind}(["'])`,
+          // 对象属性值中的独立单词: title: "Session"
+          `((?:title|label|text|message|category):\\s*["'])${normalizedFind}(["'])`,
         ];
 
         let replaced = false;
-        for (const pattern of safePatterns) {
-          if (pattern.test(content)) {
-            content = content.replace(pattern, `$1${normalizedReplace}$2`);
+        for (const patternStr of safePatterns) {
+          const pattern = new RegExp(patternStr, 'g');
+          const newContent = content.replace(pattern, `$1${normalizedReplace}$2`);
+          if (newContent !== content) {
+            content = newContent;
             replaced = true;
           }
         }
@@ -479,8 +473,38 @@ ${content}
           replaceCount++;
         }
       } else {
-        if (content.includes(normalizedFind)) {
-          content = content.replaceAll(normalizedFind, normalizedReplace);
+        // 非简单单词（如短语）：只替换引号内的文本，避免破坏代码标识符
+        // 例如 "Rename Session" 会被替换，但 DialogSessionRename 不会
+        let modified = false;
+        
+        // 处理双引号字符串
+        content = content.replace(/"([^"\\]|\\.)*"/g, (match) => {
+          if (match.includes(normalizedFind)) {
+            modified = true;
+            return match.replaceAll(normalizedFind, normalizedReplace);
+          }
+          return match;
+        });
+        
+        // 处理单引号字符串
+        content = content.replace(/'([^'\\]|\\.)*'/g, (match) => {
+          if (match.includes(normalizedFind)) {
+            modified = true;
+            return match.replaceAll(normalizedFind, normalizedReplace);
+          }
+          return match;
+        });
+        
+        // 处理模板字符串（简化处理）
+        content = content.replace(/`([^`\\]|\\.)*`/g, (match) => {
+          if (match.includes(normalizedFind)) {
+            modified = true;
+            return match.replaceAll(normalizedFind, normalizedReplace);
+          }
+          return match;
+        });
+        
+        if (modified) {
           replaceCount++;
         }
       }

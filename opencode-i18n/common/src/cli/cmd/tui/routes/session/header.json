@@ -1,0 +1,10 @@
+{
+  "file": "src\\cli\\cmd\\tui\\routes\\session\\header.tsx",
+  "category": "通用",
+  "replacements": {
+    "Subagent session": "子智能体会话",
+    "Parent": "父级",
+    "Prev": "上一个",
+    "Next": "下一个"
+  }
+}

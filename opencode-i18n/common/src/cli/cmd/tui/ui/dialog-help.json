@@ -1,0 +1,11 @@
+{
+  "file": "src\\cli\\cmd\\tui\\ui\\dialog-help.tsx",
+  "category": "通用",
+  "replacements": {
+    "Help": "帮助",
+    "esc/enter": "esc/enter",
+    "Press ": "按下 ",
+    " to see all available actions and commands in any context.": " 以查看任何上下文中的所有可用操作和命令。",
+    "ok": "确定"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "file": "src\\cli\\cmd\\tui\\component\\dialog-stash.tsx",
+  "category": "通用",
+  "replacements": {
+    "just now": "刚刚",
+    "m ago": " 分钟前",
+    "h ago": " 小时前",
+    "d ago": " 天前",
+    "Press": "按",
+    "again to confirm": "再次确认",
+    "lines": "行",
+    "Stash": "暂存",
+    "delete": "删除"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "file": "src\\cli\\cmd\\tui\\component\\prompt\\autocomplete.tsx",
+  "category": "通用",
+  "replacements": {
+    "No matching items": "没有匹配项"
+  }
+}
