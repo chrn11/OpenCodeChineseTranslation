@@ -776,28 +776,15 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
   }
 
   /**
-   * 更新或创建语言包文件
+   * 更新或创建语言包文件（使用扁平目录结构，与上游保持一致）
    */
   updateLanguagePack(filePath, newTranslations) {
     const category = this.categorizeFile(filePath);
     const fileName = this.generateConfigFileName(filePath);
-    const categoryDirs = [
-      "components",
-      "routes",
-      "contexts",
-      "dialogs",
-      "common",
-    ];
-    const subDir = path.dirname(filePath).replace(/^src\/cli\/cmd\/tui\/?/, "");
-    const firstPart = subDir.split("/")[0];
-    const skipCategory = categoryDirs.includes(firstPart);
-
-    const configPath =
-      subDir && subDir !== "."
-        ? skipCategory
-          ? path.join(this.i18nDir, subDir, fileName)
-          : path.join(this.i18nDir, category, subDir, fileName)
-        : path.join(this.i18nDir, category, fileName);
+    
+    // 使用扁平结构：直接放在分类目录下，不创建深层子目录
+    // 例如：opencode-i18n/dialogs/dialog-agent.json
+    const configPath = path.join(this.i18nDir, category, fileName);
 
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
 

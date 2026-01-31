@@ -1,9 +1,0 @@
-{
-  "file": "src\\cli\\cmd\\tui\\routes\\session\\dialog-subagent.tsx",
-  "category": "通用",
-  "replacements": {
-    "Subagent Actions": "子代理操作",
-    "Open": "打开",
-    "the subagent's session": "子代理会话"
-  }
-}

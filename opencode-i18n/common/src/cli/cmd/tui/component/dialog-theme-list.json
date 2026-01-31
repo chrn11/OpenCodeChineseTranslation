@@ -1,7 +1,0 @@
-{
-  "file": "src\\cli\\cmd\\tui\\component\\dialog-theme-list.tsx",
-  "category": "通用",
-  "replacements": {
-    "Themes": "主题"
-  }
-}

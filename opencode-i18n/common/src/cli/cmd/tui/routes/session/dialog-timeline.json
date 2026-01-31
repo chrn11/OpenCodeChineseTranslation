@@ -1,7 +1,0 @@
-{
-  "file": "src\\cli\\cmd\\tui\\routes\\session\\dialog-timeline.tsx",
-  "category": "通用",
-  "replacements": {
-    "Timeline": "时间轴"
-  }
-}

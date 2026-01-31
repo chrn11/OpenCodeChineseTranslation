@@ -1,8 +1,0 @@
-{
-  "file": "src\\cli\\cmd\\tui\\component\\dialog-command.tsx",
-  "category": "通用",
-  "replacements": {
-    "Suggested": "建议",
-    "Commands": "命令"
-  }
-}
