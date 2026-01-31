@@ -746,7 +746,8 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
    * 智能分类文件
    */
   categorizeFile(filePath) {
-    const normalized = filePath.toLowerCase();
+    // 统一路径分隔符为 /，兼容 Windows
+    const normalized = filePath.toLowerCase().replace(/\\/g, '/');
 
     if (
       normalized.includes("/ui/dialog") ||
