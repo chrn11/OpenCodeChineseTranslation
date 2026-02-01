@@ -1,8 +1,0 @@
-{
-  "file": "src\\cli\\cmd\\tui\\component\\dialog-agent.tsx",
-  "category": "通用",
-  "replacements": {
-    "Select agent": "选择代理 (Select agent)",
-    "native": "原生 (native)"
-  }
-}

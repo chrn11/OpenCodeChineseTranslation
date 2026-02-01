@@ -1,7 +1,0 @@
-{
-  "file": "src\\cli\\cmd\\tui\\ui\\toast.tsx",
-  "category": "通用",
-  "replacements": {
-    "An unknown error has occurred": "发生未知错误 (An unknown error has occurred)"
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "file": "src\\cli\\cmd\\tui\\component\\dialog-tag.tsx",
-  "category": "通用",
-  "replacements": {
-    "Autocomplete": "自动补全 (Autocomplete)"
-  }
-}
