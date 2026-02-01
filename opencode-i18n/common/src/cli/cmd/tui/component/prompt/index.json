@@ -1,0 +1,32 @@
+{
+  "file": "src\\cli\\cmd\\tui\\component\\prompt\\index.tsx",
+  "category": "通用",
+  "replacements": {
+    "Fix a TODO in the codebase": "修复代码库中的 TODO",
+    "What is the tech stack of this project?": "这个项目的技术栈是什么？",
+    "Fix broken tests": "修复损坏的测试",
+    "Connect a provider to send prompts": "连接提供者以发送提示 (Connect a provider to send prompts)",
+    "Clear prompt": "清空提示 (Clear prompt)",
+    "Submit prompt": "提交提示 (Submit prompt)",
+    "Paste": "粘贴 (Paste)",
+    "Interrupt session": "中断会话 (Interrupt session)",
+    "Open editor": "打开编辑器 (Open editor)",
+    "Skills": "技能 (Skills)",
+    "Stash prompt": "暂存提示 (Stash prompt)",
+    "Stash pop": "弹出暂存 (Stash pop)",
+    "Stash list": "暂存列表 (Stash list)",
+    "Ask anything...": "询问任何内容... (Ask anything...)",
+    "Shell": "Shell",
+    "again to interrupt": "再次以中断 (again to interrupt)",
+    "interrupt": "中断 (interrupt)",
+    "variants": "变体 (variants)",
+    "agents": "代理 (agents)",
+    "commands": "命令 (commands)",
+    "exit shell mode": "退出 Shell 模式 (exit shell mode)",
+    "gemini is way too hot right now": "gemini 目前过于繁忙 (gemini is way too hot right now)",
+    "Retry Error": "重试错误 (Retry Error)",
+    " (click to expand)": "（点击展开） ( (click to expand))",
+    " [retrying in ${duration} attempt #${r.attempt}]": " [${duration}后重试，尝试 #${r.attempt}] ( [retrying in ${duration} attempt #${r.attempt}])",
+    " [retrying attempt #${r.attempt}]": " [重试中，尝试 #${r.attempt}] ( [retrying attempt #${r.attempt}])"
+  }
+}

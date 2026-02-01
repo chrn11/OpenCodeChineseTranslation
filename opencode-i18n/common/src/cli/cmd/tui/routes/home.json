@@ -1,0 +1,12 @@
+{
+  "file": "src\\cli\\cmd\\tui\\routes\\home.tsx",
+  "category": "通用",
+  "replacements": {
+    "Show tips": "显示提示 (Show tips)",
+    "Hide tips": "隐藏提示 (Hide tips)",
+    "System": "系统 (System)",
+    "mcp errors": "MCP 错误 (mcp errors)",
+    "{} mcp server": "{} 个 MCP 服务器 ({} mcp server)",
+    "{} mcp servers": "{} 个 MCP 服务器 ({} mcp servers)"
+  }
+}

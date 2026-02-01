@@ -1,0 +1,7 @@
+{
+  "file": "src\\cli\\cmd\\tui\\ui\\dialog.tsx",
+  "category": "通用",
+  "replacements": {
+    "Copied to clipboard": "已复制到剪贴板 (Copied to clipboard)"
+  }
+}

@@ -41,22 +41,24 @@ const {
 
 function presetToSteps(preset) {
   switch (preset) {
-    case "oneclick":
+case "oneclick":
       return [
         "ensureSource",
         "cleanSource",
         "repairPack",
+        "convertBilingual",
         "applyToSource",
         "applyTokenUsagePatch",
         "qualitySource",
         "build",
         "deploy",
       ];
-    case "repair":
+case "repair":
       return [
         "ensureSourceOptional",
         "cleanSource",
         "repairPack",
+        "convertBilingual",
         "applyToSource",
         "applyTokenUsagePatch",
         "qualitySource",
@@ -261,11 +263,12 @@ async function runStep(ctx, name, fn) {
 
 function printStepSummary(stepResult) {
   const c = colors;
-  const labels = {
+const labels = {
     ensureSource: "更新官方源码",
     ensureSourceOptional: "更新官方源码（可选）",
     cleanSource: "恢复源码纯净",
     repairPack: "修复语言包（扫描/汉化/质量/验证）",
+    convertBilingual: "转换双语格式",
     verifyPack: "验证语言包",
     packQuality: "语言包质量检查",
     applyToSource: "应用语言包到源码",
@@ -601,6 +604,24 @@ function buildSteps(options = {}) {
         summary: "语言包已修复并验证",
         details,
       };
+    },
+    convertBilingual: async () => {
+      // 调用双语转换脚本
+      const convertScript = path.resolve(__dirname, '../convert-bilingual.js');
+      try {
+        require(convertScript);
+        return {
+          ok: true,
+          changed: true,
+          summary: "双语格式转换完成",
+        };
+      } catch (e) {
+        return {
+          ok: true, // 不阻塞流程
+          changed: false,
+          summary: `转换跳过: ${e.message}`,
+        };
+      }
     },
     verifyPack: async (ctx) => {
       const i18n = ctx.i18n || new I18n();

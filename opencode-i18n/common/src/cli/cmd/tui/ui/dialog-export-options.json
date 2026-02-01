@@ -1,0 +1,16 @@
+{
+  "file": "src\\cli\\cmd\\tui\\ui\\dialog-export-options.tsx",
+  "category": "通用",
+  "replacements": {
+    "Export Options": "导出选项 (Export Options)",
+    "esc": "esc",
+    "Filename:": "文件名： (Filename:)",
+    "Enter filename": "输入文件名 (Enter filename)",
+    "Include thinking": "包含思考过程 (Include thinking)",
+    "Include tool details": "包含工具详情 (Include tool details)",
+    "Include assistant metadata": "包含助手元数据 (Include assistant metadata)",
+    "Open without saving": "不保存直接打开 (Open without saving)",
+    "Press <span style={{ fg: theme.text }}>space</span> to toggle, <span style={{ fg: theme.text }}>return</span> to confirm": "按 <span style={{ fg: theme.text }}>空格</span> 切换，按 <span style={{ fg: theme.text }}>回车</span> 确认",
+    "Press <span style={{ fg: theme.text }}>return</span> to confirm, <span style={{ fg: theme.text }}>tab</span> for options": "按 <span style={{ fg: theme.text }}>回车</span> 确认，按 <span style={{ fg: theme.text }}>Tab</span> 切换选项"
+  }
+}

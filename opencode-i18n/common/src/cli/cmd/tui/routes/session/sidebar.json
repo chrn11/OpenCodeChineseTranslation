@@ -1,0 +1,24 @@
+{
+  "file": "src\\cli\\cmd\\tui\\routes\\session\\sidebar.tsx",
+  "category": "通用",
+  "replacements": {
+    "Context": "上下文 (Context)",
+    "tokens": "令牌 (tokens)",
+    "used": "已使用 (used)",
+    "spent": "花费 (spent)",
+    "active": "活跃 (active)",
+    "error": "错误 (error)",
+    "Connected": "已连接 (Connected)",
+    "Disabled": "已禁用 (Disabled)",
+    "Needs auth": "需要认证 (Needs auth)",
+    "Needs client ID": "需要客户端ID (Needs client ID)",
+    "LSPs have been disabled in settings": "LSP已在设置中禁用 (LSPs have been disabled in settings)",
+    "LSPs will activate as files are read": "LSP将在读取文件时激活 (LSPs will activate as files are read)",
+    "Todo": "待办事项 (Todo)",
+    "Modified Files": "修改的文件 (Modified Files)",
+    "Getting started": "入门指南 (Getting started)",
+    "OpenCode includes free models so you can start immediately.": "OpenCode包含免费模型，您可以立即开始使用。 (OpenCode includes free models so you can start immediately.)",
+    "Connect from 75+ providers to use other models, including Claude, GPT, Gemini etc": "连接75+个提供商以使用其他模型，包括Claude、GPT、Gemini等",
+    "Connect provider": "连接提供商 (Connect provider)"
+  }
+}

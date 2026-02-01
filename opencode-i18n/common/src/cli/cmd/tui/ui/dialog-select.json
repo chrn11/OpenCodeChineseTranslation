@@ -1,0 +1,9 @@
+{
+  "file": "src\\cli\\cmd\\tui\\ui\\dialog-select.tsx",
+  "category": "通用",
+  "replacements": {
+    "Search": "搜索 (Search)",
+    "No results found": "未找到结果 (No results found)",
+    "esc": "esc"
+  }
+}

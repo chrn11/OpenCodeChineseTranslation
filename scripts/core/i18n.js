@@ -196,9 +196,10 @@ ${content}
 
   /**
    * 智能处理新文件：AI 检查 → 自动翻译或跳过
+   * 优化：并行处理 + 超时控制 + 并发限制
    */
   async smartProcessNewFiles(newFiles, options = {}) {
-    const { silent = false, dryRun = false } = options;
+    const { silent = false, dryRun = false, concurrency = 5, timeout = 30000 } = options;
     if (newFiles.length === 0) {
       return {
         processed: 0,
@@ -211,7 +212,7 @@ ${content}
       };
     }
 
-    if (!silent) info(`正在用 AI 分析 ${newFiles.length} 个新文件...`);
+    if (!silent) info(`正在用 AI 并行分析 ${newFiles.length} 个新文件（并发: ${concurrency}）...`);
 
     const stats = {
       processed: 0,
@@ -223,62 +224,80 @@ ${content}
       skipped: [],
     };
 
-    for (const file of newFiles) {
+    // 带超时的 AI 检查
+    const aiCheckWithTimeout = async (fullPath, timeoutMs) => {
+      return Promise.race([
+        this.aiCheckFile(fullPath),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('AI 分析超时')), timeoutMs)
+        )
+      ]);
+    };
+
+    // 处理单个文件
+    const processFile = async (file) => {
       const fullPath = path.join(this.sourceBase, file);
-      stats.processed++;
-      if (!silent) indent(`检查: ${file}`, 2);
-
-      const result = await this.aiCheckFile(fullPath);
-      if (!result) {
-        stats.failedFiles++;
-        if (!silent) indent(`  ⚠ AI 分析失败，保留待处理`, 2);
-        continue;
+      
+      try {
+        const result = await aiCheckWithTimeout(fullPath, timeout);
+        return { file, fullPath, result, error: null };
+      } catch (e) {
+        return { file, fullPath, result: null, error: e.message };
       }
+    };
 
-      if (result.needsTranslation && result.translations?.length > 0) {
-        const category = this.getCategoryFromPath(file);
-        const configPath = this.generateConfigPath(file, category);
+    // 分批并行处理
+    const batches = [];
+    for (let i = 0; i < newFiles.length; i += concurrency) {
+      batches.push(newFiles.slice(i, i + concurrency));
+    }
 
-        // 转换为 replacements 对象格式
-        const replacements = {};
-        for (const t of result.translations) {
-          replacements[t.original] = t.translated;
+    for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+      const batch = batches[batchIdx];
+      if (!silent) info(`处理批次 ${batchIdx + 1}/${batches.length}（${batch.length} 个文件）...`);
+      
+      // 并行处理当前批次
+      const results = await Promise.all(batch.map(processFile));
+      
+      // 处理结果
+      for (const { file, result, error } of results) {
+        stats.processed++;
+        
+        if (error || !result) {
+          stats.failedFiles++;
+          if (!silent) warn(`  ⚠ ${file}: ${error || 'AI 分析失败'}`);
+          continue;
         }
 
-        const config = {
-          file: file,
-          category: category,
-          replacements: replacements,
-        };
+        if (result.needsTranslation && result.translations?.length > 0) {
+          const category = this.getCategoryFromPath(file);
+          const configPath = this.generateConfigPath(file, category);
 
-        stats.translatedFiles++;
-        stats.translatedEntries += result.translations.length;
-        stats.savedConfigs.push({
-          file,
-          configPath,
-          count: result.translations.length,
-        });
+          const replacements = {};
+          for (const t of result.translations) {
+            replacements[t.original] = t.translated;
+          }
 
-        if (!dryRun) {
-          fs.mkdirSync(path.dirname(configPath), { recursive: true });
-          fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+          const config = { file, category, replacements };
+
+          stats.translatedFiles++;
+          stats.translatedEntries += result.translations.length;
+          stats.savedConfigs.push({ file, configPath, count: result.translations.length });
+
+          if (!dryRun) {
+            fs.mkdirSync(path.dirname(configPath), { recursive: true });
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+          }
+
+          if (!silent) {
+            success(`  ✓ ${file}: ${result.translations.length} 条翻译`);
+          }
+        } else {
+          stats.skippedFiles++;
+          stats.skipped.push({ file, reason: result.reason || "无需翻译的文本" });
+          if (!dryRun) this.addToSkipList(file, result.reason || "无需翻译的文本");
+          if (!silent) info(`  ○ ${file}: 跳过 - ${result.reason}`);
         }
-
-        if (!silent) {
-          success(
-            dryRun
-              ? `  ✓ (dry-run) 将保存翻译: ${result.translations.length} 条`
-              : `  ✓ 已保存翻译: ${result.translations.length} 条`,
-          );
-          indent(`    配置: ${configPath}`, 2);
-        }
-      } else {
-        // 不需要翻译 → 加入跳过列表
-        stats.skippedFiles++;
-        stats.skipped.push({ file, reason: result.reason || "无需翻译的文本" });
-        if (!dryRun)
-          this.addToSkipList(file, result.reason || "无需翻译的文本");
-        if (!silent) info(`  ○ 已跳过: ${result.reason}`);
       }
     }
 

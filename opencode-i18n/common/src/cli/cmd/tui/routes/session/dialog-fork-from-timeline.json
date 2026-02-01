@@ -1,0 +1,7 @@
+{
+  "file": "src\\cli\\cmd\\tui\\routes\\session\\dialog-fork-from-timeline.tsx",
+  "category": "通用",
+  "replacements": {
+    "Fork from message": "从消息分支 (Fork from message)"
+  }
+}

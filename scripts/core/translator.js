@@ -578,34 +578,28 @@ class Translator {
     }
     await this.ensureModel();
 
-    const prompt = `请将以下英文 UI 文本翻译成中文。
+const prompt = `请将以下英文 UI 文本翻译成中文。
 
 **翻译规则：**
-1. 输出格式：中文翻译 (English original)
-2. 例如："Help" → "帮助 (Help)"
-3. 保持专业术语准确：Session=会话, Model=模型, Agent=代理/智能体, Provider=提供商
-4. UI 文本要口语化自然
-5. 快捷键保持英文：Ctrl+X, Enter, Escape
+1. 只输出纯中文翻译，不要加英文原文
+2. 保持专业术语准确：Session=会话, Model=模型, Agent=代理, Provider=提供商
+3. UI 文本要口语化自然
+4. 快捷键保持英文：Ctrl+X, Enter, Escape
 
 **【重要】以下内容绝对不能翻译，必须原样保留：**
 - 变量占位符：{highlight}, {keybind.print(...)}, {name}, {count} 等
-- 文件路径和 import 路径：./dialog-session, ../components/Button, @/utils
-- 组件名（PascalCase）：DialogSession, MessageList, CommandPalette
-- 函数名（camelCase）：handleClick, onSubmit, useState, getText
-- 连字符标识符（kebab-case）：dialog-session, message-list, open-code
-- 以 . / @ # 开头的路径或标识符
-- 常量名（全大写）：API_KEY, MAX_LENGTH, DEFAULT_VALUE
+- 文件路径和 import 路径
+- 组件名、函数名、常量名
 - 如果无法确定是否应该翻译，保持原文不变
 
 **待翻译文本（来自 ${fileName}）：**
 ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
 
 **输出格式（JSON）：**
-严格输出 JSON，key 是原文，value 是 "中文 (English)" 格式：
 \`\`\`json
 {
-  "原文1": "中文翻译1 (原文1)",
-  "原文2": "中文翻译2 (原文2)"
+  "原文1": "中文翻译1",
+  "原文2": "中文翻译2"
 }
 \`\`\``;
 
@@ -731,11 +725,20 @@ ${texts.map((t, i) => `${i + 1}. "${t.text}"`).join("\n")}
     const translations = JSON.parse(jsonMatch[1]);
     const result = {};
 
-    for (const item of originalTexts) {
+for (const item of originalTexts) {
       const translated = translations[item.text];
       if (translated) {
-        // 构建完整的替换规则
-        result[item.original] = item.original.replace(item.text, translated);
+        // 自动添加英文后缀，形成双语格式 "中文 (English)"
+        // 跳过：已是双语格式、过长文本、翻译结果与原文相同
+        let finalTranslation = translated;
+        if (
+          translated !== item.text &&
+          item.text.length <= 60 &&
+          !translated.includes(`(${item.text})`)
+        ) {
+          finalTranslation = `${translated} (${item.text})`;
+        }
+        result[item.original] = item.original.replace(item.text, finalTranslation);
       }
     }
 

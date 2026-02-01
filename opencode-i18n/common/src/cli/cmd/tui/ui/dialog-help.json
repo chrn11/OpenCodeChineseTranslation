@@ -1,0 +1,10 @@
+{
+  "file": "src\\cli\\cmd\\tui\\ui\\dialog-help.tsx",
+  "category": "通用",
+  "replacements": {
+    "Help": "帮助 (Help)",
+    "esc/enter": "esc/回车 (esc/enter)",
+    "Press {keybind.print(\"command_list\")} to see all available actions and commands in any context.": "在任何上下文中，按 {keybind.print(\"command_list\")} 查看所有可用的操作和命令。",
+    "ok": "确定 (ok)"
+  }
+}

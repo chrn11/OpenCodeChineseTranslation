@@ -1,0 +1,9 @@
+{
+  "file": "src\\cli\\cmd\\tui\\routes\\session\\footer.tsx",
+  "category": "通用",
+  "replacements": {
+    "Get started": "开始使用 (Get started)",
+    "Permission": "权限 (Permission)",
+    "Permissions": "权限 (Permissions)"
+  }
+}

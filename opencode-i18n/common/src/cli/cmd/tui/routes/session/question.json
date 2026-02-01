@@ -1,0 +1,17 @@
+{
+  "file": "src\\cli\\cmd\\tui\\routes\\session\\question.tsx",
+  "category": "通用",
+  "replacements": {
+    "Confirm": "确认 (Confirm)",
+    "(select all that apply)": "(可多选) ((select all that apply))",
+    "Type your own answer": "输入自定义答案 (Type your own answer)",
+    "Review": "审阅 (Review)",
+    "(not answered)": "(未回答) ((not answered))",
+    "tab": "切换标签 (tab)",
+    "select": "选择 (select)",
+    "submit": "提交 (submit)",
+    "toggle": "切换 (toggle)",
+    "confirm": "确认 (confirm)",
+    "dismiss": "关闭 (dismiss)"
+  }
+}
